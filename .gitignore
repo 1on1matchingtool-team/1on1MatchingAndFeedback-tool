@@ -8,6 +8,9 @@ __pycache__/
 *.pyc
 #-----
 
+# Environment variables - never commit these
+.env
+
 # Logs
 logs
 *.log
@@ -36,5 +39,7 @@ instance
 *.sln
 *.sw?
 
-1on1MatchingAndFeedbackTool/frontend/.env
-1on1MatchingAndFeedbackTool/backend/.env
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
