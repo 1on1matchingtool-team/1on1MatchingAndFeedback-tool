@@ -2,10 +2,13 @@ from .base_validators import *
 
 def validate_coach(data):
     # Required fields
-    require_fields(data, ["CoachName", "Email"])
+    require_fields(data, ["FirstName", "LastName", "Email"])
 
-    # CoachName
-    validate_string("CoachName", data["CoachName"], min_len=2, max_len=100)
+    # FirstName
+    validate_string("FirstName", data["FirstName"], min_len=1, max_len=50)
+
+    # LastName
+    validate_string("LastName", data["LastName"], min_len=1, max_len=60)
 
     # Email
     validate_string("Email", data["Email"], min_len=5, max_len=100)

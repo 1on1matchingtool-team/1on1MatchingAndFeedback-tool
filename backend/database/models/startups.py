@@ -4,7 +4,7 @@ class Startups(db.Model):
     __tablename__ = 'startups'
     StartupId = db.Column(db.Integer, primary_key=True, autoincrement=True)
     # Core Identity
-    StartupName = db.Column(db.String(100), nullable=False)
+    StartupName = db.Column(db.String(50), nullable=False)
     Website = db.Column(db.String(255), nullable=False)
     # Status: alive / on-pause / dead
     Status = db.Column(db.String(20), nullable=False, default="alive")
