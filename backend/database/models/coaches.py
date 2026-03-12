@@ -5,7 +5,8 @@ class Coaches(db.Model):
     __tablename__ = 'coaches'
     CoachId = db.Column(db.Integer, primary_key=True)
     # Required
-    CoachName = db.Column(db.String(100), nullable=False)
+    FirstName = db.Column(db.String(50), nullable=False)
+    LastName = db.Column(db.String(60), nullable=False)
     Email = db.Column(db.String(100), nullable=False, unique=True)
     # Optional contact methods
     Phone = db.Column(db.String(100), nullable=True)
