@@ -1,6 +1,7 @@
 import pytest
 from backend.app import create_app
 from backend.database.base import db as _db
+from backend.tests.factories import CoachFactory, StartupFactory
 
 # conftest.py is a special pytest file that holds fixtures.
 # Fixtures are reusable setup functions that pytest automatically
@@ -8,7 +9,7 @@ from backend.database.base import db as _db
 # This file is discovered automatically by pytest - no imports needed.
 
 
-@pytest.fixture
+@pytest.fixture(scope="session") # Create the app once per test session (all tests share the same app instance)
 def app():
     """
     Creates a fresh Flask app configured for testing.
@@ -26,7 +27,7 @@ def app():
     })
     return app
 
-@pytest.fixture
+@pytest.fixture (scope="function") # Create the database once per test function
 def database(app):
     """
     Creates all database tables before each test and drops them after.
@@ -40,4 +41,13 @@ def database(app):
     with app.app_context():
         _db.create_all()
         yield _db
+        _db.session.remove()
         _db.drop_all()
+
+@pytest.fixture(scope="function")
+def db_session(database):
+    # Wire all factories to use the test database session
+    CoachFactory._meta.sqlalchemy_session = database.session
+    StartupFactory._meta.sqlalchemy_session = database.session
+
+    yield database.session
