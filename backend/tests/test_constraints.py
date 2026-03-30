@@ -16,9 +16,8 @@ class NameConstraints:
     STARTUP_NAME_MIN = 1
     STARTUP_NAME_MAX = 50
 
-    # Boundary test values following mentor's advice:
-    # test around edges, middle, and well outside
-    # for fields with max 50
+    # Boundary test values:
+    # test around edges, middle, and well outside for fields with max 50
     BOUNDARY_LENGTHS_50 = [0, 1, 2, 3, 25, 49, 50, 51, 62]
     # for fields with max 60
     BOUNDARY_LENGTHS_60 = [0, 1, 2, 3, 30, 59, 60, 61, 75]
@@ -74,6 +73,33 @@ class NameConstraints:
         "Ἀχιλλεύς",         # Classical Greek
     ]
 
+    # Names with numbers — must be rejected
+    NAMES_WITH_NUMBERS = [
+        "John1",
+        "2pac",
+        "Smith99",
+        "1",
+        "ABC123",
+    ]
+
+class TitleConstraints:
+    """Constraints for the Title field in Coaches model."""
+
+    VALID_TITLES = ["Mr", "Ms", "Mrs", "Dr", "Prof"]
+
+    INVALID_TITLES = [
+        "mr",           # wrong case
+        "MR",           # all caps
+        "Miss",         # not in allowed list
+        "Sir",          # not in allowed list
+        "",             # empty string
+        "M",            # too short
+        "A" * 21,       # too long
+        "Mr.",          # with dot
+        "Dr ",          # trailing space
+        " Ms",          # leading space
+        "123",          # numbers
+    ]
 
 class EmailConstraints:
     """Constraints for email fields."""
@@ -100,7 +126,7 @@ class MeetingsConstraints:
     """Constraints for meetings count field."""
 
     MIN = 0
-    # Based on mentor's note: maximum 20 teams per session
+    # Maximum 20 teams per session
     BOUNDARY_VALUES = [0, 1, 2, 19, 20, 21]
 
 
