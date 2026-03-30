@@ -156,6 +156,15 @@ class WebsiteConstraints:
         "just text",            # not a URL at all
     ]
 
+class DescriptionConstraints:
+    """Constraints for description fields."""
+ 
+    STARTUP_DESCRIPTION_MIN = 0
+    STARTUP_DESCRIPTION_MAX = 255
+ 
+    # Boundary values for 255 max length
+    BOUNDARY_LENGTHS = [0, 1, 2, 3, 128, 254, 255, 256, 300]
+
 
 class MemberConstraints:
     """Constraints for startup member fields."""
