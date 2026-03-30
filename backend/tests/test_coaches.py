@@ -1,6 +1,3 @@
-# backend/tests/test_coaches.py
-# Tests for coach validation and model constraints.
-
 import pytest
 from werkzeug.exceptions import BadRequest
 from backend.tests.test_constraints import NameConstraints, EmailConstraints, TitleConstraints
