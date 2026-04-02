@@ -1,47 +1,59 @@
 import json
 import random
+import os
 
-# Load coaches and startups JSON from files
-try:
-    with open('data/coachTimeWithBreaks.json', 'r') as f:
-        coaches_json = json.load(f)
-except json.decoder.JSONDecodeError as e:
-    print(f"Error decoding coachTimeWithBreaks.json: {e}")
+# Check if running in test mode.
+# When TEST_MODE=True, file loading is skipped entirely.
+# Tests pass data directly to assign_startups_to_coaches().
+TEST_MODE = os.getenv("TEST_MODE", "False") == "True"
+
+if not TEST_MODE:
+    try:
+        with open('data/coachTimeWithBreaks.json', 'r') as f:
+            coaches_json = json.load(f)
+    except json.decoder.JSONDecodeError as e:
+        print(f"Error decoding coachTimeWithBreaks.json: {e}")
+        coaches_json = {}
+    except FileNotFoundError as e:
+        print(f"coachTimeWithBreaks.json file not found: {e}")
+        coaches_json = {}
+    except Exception as e:
+        print(f"Unexpected error loading coachTimeWithBreaks.json: {e}")
+        coaches_json = {}
+
+    try:
+        with open('data/startups.json', 'r') as f:
+            startups_json = json.load(f)
+    except json.decoder.JSONDecodeError as e:
+        print(f"Error decoding startups.json: {e}")
+        startups_json = {}
+    except FileNotFoundError as e:
+        print(f"startups.json file not found: {e}")
+        startups_json = {}
+    except Exception as e:
+        print(f"Unexpected error loading startups.json: {e}")
+        startups_json = {}
+
+    try:
+        with open('data/total_feedbacks.json', 'r') as f:
+            feedbacks_json = json.load(f)
+    except json.decoder.JSONDecodeError as e:
+        print(f"Error decoding total_feedbacks.json: {e}")
+        feedbacks_json = {}
+    except FileNotFoundError as e:
+        print(f"total_feedbacks.json file not found: {e}")
+        feedbacks_json = {}
+    except Exception as e:
+        print(f"Unexpected error loading total_feedbacks.json: {e}")
+        feedbacks_json = {}
+
+else:
+    # Test mode — skip file loading entirely
+    # Tests pass data directly to assign_startups_to_coaches()
     coaches_json = {}
-except FileNotFoundError as e:
-    print(f"coachTimeWithBreaks.json file not found: {e}")
-    coaches_json = {}
-except Exception as e:
-    print(f"Unexpected error loading coachTimeWithBreaks.json: {e}")
-    coaches_json = {}
-
-try:
-    with open('data/startups.json', 'r') as f:
-        startups_json = json.load(f)
-except json.decoder.JSONDecodeError as e:
-    print(f"Error decoding startups.json: {e}")
     startups_json = {}
-except FileNotFoundError as e:
-    print(f"startups.json file not found: {e}")
-    startups_json = {}
-except Exception as e:
-    print(f"Unexpected error loading startups.json: {e}")
-    startups_json = {}
-
-try:
-    with open('data/total_feedbacks.json', 'r') as f:
-        feedbacks_json = json.load(f)
-except json.decoder.JSONDecodeError as e:
-    print(f"Error decoding total_feedbacks.json: {e}")
-    feedbacks_json = {}
-except FileNotFoundError as e:
-    print(f"total_feedbacks.json file not found: {e}")
-    feedbacks_json = {}
-except Exception as e:
-    print(f"Unexpected error loading total_feedbacks.json: {e}")
     feedbacks_json = {}
 
-# Logic to assign startups to coaches' available slots with constraints
 def assign_startups_to_coaches(coaches, startups, feedbacks):
     print("Starting assignment process...")
     assigned_startups = {}
@@ -148,9 +160,6 @@ def assign_startups_to_coaches(coaches, startups, feedbacks):
         startups_with_feedback_per_coach[coach_name] = [startup for priority_array in sorted_startups for startup in priority_array]
         print(f"Flattened list of startups for coach {coach_name}: {startups_with_feedback_per_coach[coach_name]}")
 
-    # Create three lists for assignment: startups with 0 meetings, startups_with_feedback, and shadow_ban startups
-    # The shadow_ban_startups set has already been created above
-
     # Assign startups to coaches
     for coach_name, coach_data in coaches.items():
         print(f"Assigning startups to coach {coach_name}...")
@@ -161,12 +170,10 @@ def assign_startups_to_coaches(coaches, startups, feedbacks):
         print(f"Excluded startups for coach {coach_name}: {excluded_startups}")
 
         startups_with_feedback = startups_with_feedback_per_coach.get(coach_name, [])
-        # startups_with_zero_meetings = [startup["startup_id"] for startup in startups.values() if startup["meetings_count"] == 0]
-        # random.shuffle(startups_with_zero_meetings)  # Shuffle startups with zero meetings before assigning to each coach
-        print(f"Startups with zero meetings (shuffled): {startups_with_zero_meetings}\n") # print for debug
+        print(f"Startups with zero meetings (shuffled): {startups_with_zero_meetings}\n")
 
         shadow_ban_startups_list = list(shadow_ban_startups_per_coach[coach_name])
-        random.shuffle(shadow_ban_startups_list)  # Shuffle shadow-banned startups before assigning to each coach
+        random.shuffle(shadow_ban_startups_list)
         print(f"Shadow-banned startups for coach {coach_name} (shuffled): {shadow_ban_startups_list}")
 
         for slot in available_slots:
@@ -188,7 +195,7 @@ def assign_startups_to_coaches(coaches, startups, feedbacks):
             # Assign startups, checking for constraints
             assigned = False
             for assigned_startup_id in startups_with_zero_meetings:
-                if (assigned_startup_id not in excluded_startups and  # Check exclusion
+                if (assigned_startup_id not in excluded_startups and
                         slot_time not in taken_slots[coach_name] and
                         slot_time not in global_taken_slots.get(assigned_startup_id, set()) and
                         assigned_startup_id not in coach_meetings[coach_name]):
@@ -199,7 +206,7 @@ def assign_startups_to_coaches(coaches, startups, feedbacks):
 
             if not assigned:
                 for assigned_startup_id in startups_with_feedback:
-                    if (assigned_startup_id not in excluded_startups and  # Check exclusion
+                    if (assigned_startup_id not in excluded_startups and
                             slot_time not in taken_slots[coach_name] and
                             slot_time not in global_taken_slots.get(assigned_startup_id, set()) and
                             assigned_startup_id not in coach_meetings[coach_name]):
@@ -210,7 +217,7 @@ def assign_startups_to_coaches(coaches, startups, feedbacks):
 
             if not assigned:
                 for assigned_startup_id in shadow_ban_startups_list:
-                    if (assigned_startup_id not in excluded_startups and  # Check exclusion
+                    if (assigned_startup_id not in excluded_startups and
                             slot_time not in taken_slots[coach_name] and
                             slot_time not in global_taken_slots.get(assigned_startup_id, set()) and
                             assigned_startup_id not in coach_meetings[coach_name]):
@@ -231,6 +238,7 @@ def assign_startups_to_coaches(coaches, startups, feedbacks):
     print("Assignment process completed.")
     return assigned_startups
 
+
 def assign_startup_to_slot(assigned_startup_id, coach_name, slot_time, slot_duration, assigned_startups, taken_slots, global_taken_slots, coach_meetings, startups):
     print(f"Assigning startup {assigned_startup_id} to coach {coach_name} for slot {slot_time} with duration {slot_duration}")
     # Assign the startup to the slot
@@ -242,9 +250,9 @@ def assign_startup_to_slot(assigned_startup_id, coach_name, slot_time, slot_dura
     })
 
     # Update tracking
-    taken_slots[coach_name].add(slot_time)  # Mark this slot as taken for this coach
-    global_taken_slots.setdefault(assigned_startup_id, set()).add(slot_time)  # Track globally for the startup
-    coach_meetings[coach_name].add(assigned_startup_id)  # Track meeting for this coach
+    taken_slots[coach_name].add(slot_time)
+    global_taken_slots.setdefault(assigned_startup_id, set()).add(slot_time)
+    coach_meetings[coach_name].add(assigned_startup_id)
     print(f"Updated tracking: taken_slots for coach {coach_name} = {taken_slots[coach_name]}, global_taken_slots for startup {assigned_startup_id} = {global_taken_slots[assigned_startup_id]}, coach_meetings for coach {coach_name} = {coach_meetings[coach_name]}\n")
 
     # Increment meetings_count for the assigned startup
@@ -255,19 +263,18 @@ def assign_startup_to_slot(assigned_startup_id, coach_name, slot_time, slot_dura
             break
 
 
+# -------------------------------------------------------
+# Only runs when executing algo.py directly, never on import
+# -------------------------------------------------------
 
-# Assign startups to coaches
-assigned_startups = assign_startups_to_coaches(coaches_json, startups_json, feedbacks_json)
+if __name__ == "__main__":
+    assigned_startups = assign_startups_to_coaches(coaches_json, startups_json, feedbacks_json)
 
-# Convert the result to JSON format and print
-assigned_startups_json = json.dumps(assigned_startups, indent=4)
-print(assigned_startups_json)
+    assigned_startups_json = json.dumps(assigned_startups, indent=4)
+    print(assigned_startups_json)
 
-# Save the assigned result to a file
-with open('data/assigned_startups.json', 'w') as f:
-    json.dump(assigned_startups, f, indent=4)
+    with open('data/assigned_startups.json', 'w') as f:
+        json.dump(assigned_startups, f, indent=4)
 
-# Save the updated startups with the updated meetings_count to the file
-# In future will be updating the same json, where startups are initialized
-with open('data/startups.json', 'w') as f:
-    json.dump(startups_json, f, indent=4)
+    with open('data/startups.json', 'w') as f:
+        json.dump(startups_json, f, indent=4)
