@@ -1,10 +1,6 @@
 import pytest
 from werkzeug.exceptions import BadRequest
-from backend.tests.test_constraints import (
-    NameConstraints,
-    StatusConstraints,
-    WebsiteConstraints,
-)
+from backend.tests.test_constraints import (NameConstraints, StatusConstraints, DescriptionConstraints, WebsiteConstraints,)
 from backend.validation.startup_validation import validate_startup
 
 
@@ -378,3 +374,79 @@ class TestStartupNameUnicode:
             "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}]
         }
         validate_startup(data)
+
+# ============================================================
+# Category 8 - StartupDescription Boundary Tests
+# ============================================================
+ 
+class TestStartupDescription:
+    """Tests for the optional StartupDescription field (min=0, max=255)."""
+ 
+    def test_missing_description_passes(self):
+        """StartupDescription is optional — omitting it should pass validation."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}]
+        }
+        validate_startup(data)
+ 
+    def test_none_description_passes(self):
+        """StartupDescription set to None should pass since it is optional."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}],
+            "StartupDescription": None
+        }
+        validate_startup(data)
+ 
+    def test_empty_description_passes(self):
+        """An empty string description should pass since min length is 0."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}],
+            "StartupDescription": ""
+        }
+        validate_startup(data)
+ 
+    @pytest.mark.parametrize("length", [
+        l for l in DescriptionConstraints.BOUNDARY_LENGTHS
+        if l >= DescriptionConstraints.STARTUP_DESCRIPTION_MIN
+        and l <= DescriptionConstraints.STARTUP_DESCRIPTION_MAX
+    ])
+    def test_valid_description_length(self, length):
+        """StartupDescription within allowed length should pass validation."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}],
+            "StartupDescription": "A" * length
+        }
+        validate_startup(data)
+ 
+    @pytest.mark.parametrize("length", [
+        l for l in DescriptionConstraints.BOUNDARY_LENGTHS
+        if l > DescriptionConstraints.STARTUP_DESCRIPTION_MAX
+    ])
+    def test_invalid_description_length(self, length):
+        """StartupDescription exceeding max length should fail validation."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}],
+            "StartupDescription": "A" * length
+        }
+        with pytest.raises(BadRequest):
+            validate_startup(data)
