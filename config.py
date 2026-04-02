@@ -19,12 +19,12 @@ class Config:
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{DB_FULL_PATH}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = True
-
+    TEST_MODE = False
 
 class TestConfig(Config):
     """Test configuration. Inherits from Config and overrides
-    settings for testing. Database uses in-memory SQLite via
-    conftest.py - no file based database needed for tests."""
+    settings for testing."""
 
     TESTING = True
     SQLALCHEMY_ECHO = False  # Keep terminal clean during tests
+    TEST_MODE = True  # signals to algorithm not to load JSON files
