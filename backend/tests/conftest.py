@@ -1,3 +1,9 @@
+import os
+ 
+# Must be set before any other imports that might trigger algo.py loading.
+# This prevents the algorithm from trying to open production JSON files
+# during testing.
+os.environ["TEST_MODE"] = "True"
 import pytest
 from backend.app import create_app
 from backend.database.base import db as _db
