@@ -225,6 +225,77 @@ def two_coaches_same_slots():
     }
     return coaches, startups, feedbacks
 
+@pytest.fixture
+def two_coaches_high_priority_double_booking():
+    """Two coaches each with one slot at the same time, two startups
+    both at priority 1 (startup=1, coach=1) for both coaches."""
+    
+    coaches = {
+        "Coach Alice": {
+            "Coach_id": 0,
+            "Needs_break": False,
+            "Availability": [
+                {"Slot": "09:00 - 09:30", "Duration": "30 minutes"},
+            ]
+        },
+        "Coach Bob": {
+            "Coach_id": 1,
+            "Needs_break": False,
+            "Availability": [
+                {"Slot": "09:00 - 09:30", "Duration": "30 minutes"},
+            ]
+        }
+    }
+    startups = {
+        "Startup P1A": {"startup_id": 0, "meetings_count": 2},  # priority 1 for both coaches
+        "Startup P1B": {"startup_id": 1, "meetings_count": 2},  # priority 1 for both coaches
+    }
+    feedbacks = {
+        "Coach Alice": {
+            "Coach_id": 0,
+            "Feedback_per_startup": [
+                {
+                    "Startup_id": 0,
+                    "Startup_name": "Startup P1A",
+                    "Startup_grade": 1,
+                    "Coach_grade": 1,   # priority 1
+                    "Startup_text_feedback": "",
+                    "Coach_text_feedback": ""
+                },
+                {
+                    "Startup_id": 1,
+                    "Startup_name": "Startup P1B",
+                    "Startup_grade": 1,
+                    "Coach_grade": 1,   # priority 1
+                    "Startup_text_feedback": "",
+                    "Coach_text_feedback": ""
+                },
+            ]
+        },
+        "Coach Bob": {
+            "Coach_id": 1,
+            "Feedback_per_startup": [
+                {
+                    "Startup_id": 0,
+                    "Startup_name": "Startup P1A",
+                    "Startup_grade": 1,
+                    "Coach_grade": 1,   # priority 1
+                    "Startup_text_feedback": "",
+                    "Coach_text_feedback": ""
+                },
+                {
+                    "Startup_id": 1,
+                    "Startup_name": "Startup P1B",
+                    "Startup_grade": 1,
+                    "Coach_grade": 1,   # priority 1
+                    "Startup_text_feedback": "",
+                    "Coach_text_feedback": ""
+                },
+            ]
+        }
+    }
+    return coaches, startups, feedbacks
+
 
 # ============================================================
 # Priority matrix fixtures
