@@ -78,6 +78,9 @@ def validate_startup(data, is_patch=False):
     if "StartupMembers" in data:
         if not isinstance(data["StartupMembers"], list):
             raise BadRequest({"error": "StartupMembers must be a list"})
+        
+        if len(data["StartupMembers"]) == 0:  # checking that the list is not empty
+            raise BadRequest({"error": "StartupMembers must have at least one member"})
 
         cleaned_members = []
         for member in data["StartupMembers"]:
