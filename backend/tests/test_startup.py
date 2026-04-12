@@ -1,6 +1,13 @@
+# Tests for startup validation and model constraints.
+
 import pytest
 from werkzeug.exceptions import BadRequest
-from backend.tests.test_constraints import (NameConstraints, StatusConstraints, DescriptionConstraints, WebsiteConstraints,)
+from backend.tests.test_constraints import (
+    NameConstraints,
+    StatusConstraints,
+    WebsiteConstraints,
+    DescriptionConstraints,
+)
 from backend.validation.startup_validation import validate_startup
 
 
@@ -94,16 +101,59 @@ class TestStartupRequiredFields:
         }
         validate_startup(data)
 
+    def test_unknown_field_raises_error(self):
+        """Sending an unknown field should raise a BadRequest."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}],
+            "UnknownField": "something"
+        }
+        with pytest.raises(BadRequest) as exc_info:
+            validate_startup(data)
+        assert "Unknown field" in str(exc_info.value)
+
+
+# ============================================================
+# Category 4 - PATCH vs POST
+# ============================================================
+
+class TestStartupPatchVsPost:
+    """Tests that verify POST and PATCH behave differently."""
+
+    def test_patch_with_single_field_passes(self):
+        """A PATCH request with just one valid field should pass."""
+        data = {"StartupName": "MyStartup"}
+        validate_startup(data, is_patch=True)
+
+    def test_patch_with_no_valid_fields_raises_error(self):
+        """A PATCH request with no valid fields should raise a BadRequest."""
+        data = {}
+        with pytest.raises(BadRequest):
+            validate_startup(data, is_patch=True)
+
+    def test_post_without_required_fields_raises_error(self):
+        """A POST request missing required fields should raise a BadRequest."""
+        data = {"StartupName": "MyStartup"}
+        with pytest.raises(BadRequest):
+            validate_startup(data, is_patch=False)
+
 
 # ============================================================
 # Category 8 - StartupName Boundary Tests
 # ============================================================
 
 class TestStartupNameBoundaries:
-    """Tests for StartupName length constraints (min=1, max=50)."""
+    """Tests for StartupName length constraints (min=1, max=100).
+
+    Note: StartupName uses validate_startup_name() which allows numbers.
+    "Web3" and "99designs" are valid. Use BOUNDARY_LENGTHS_100 not _50.
+    """
 
     @pytest.mark.parametrize("length", [
-        l for l in NameConstraints.BOUNDARY_LENGTHS_50
+        l for l in NameConstraints.BOUNDARY_LENGTHS_100
         if l >= NameConstraints.STARTUP_NAME_MIN
         and l <= NameConstraints.STARTUP_NAME_MAX
     ])
@@ -119,7 +169,7 @@ class TestStartupNameBoundaries:
         validate_startup(data)
 
     @pytest.mark.parametrize("length", [
-        l for l in NameConstraints.BOUNDARY_LENGTHS_50
+        l for l in NameConstraints.BOUNDARY_LENGTHS_100
         if l < NameConstraints.STARTUP_NAME_MIN
         or l > NameConstraints.STARTUP_NAME_MAX
     ])
@@ -133,6 +183,18 @@ class TestStartupNameBoundaries:
             "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}]
         }
         with pytest.raises(BadRequest):
+            validate_startup(data)
+
+    def test_startupname_with_numbers_passes(self):
+        """StartupName can contain numbers — Web3, 99designs are valid."""
+        for name in ["Web3", "99designs", "Studio54"]:
+            data = {
+                "StartupName": name,
+                "Website": "https://example.com",
+                "Status": "alive",
+                "PreviousNames": [],
+                "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}]
+            }
             validate_startup(data)
 
 
@@ -272,6 +334,32 @@ class TestStartupMembers:
         }
         validate_startup(data)
 
+    def test_member_name_with_numbers_rejected(self):
+        """A member name containing numbers should raise a BadRequest.
+        Member names use validate_unicode_name which blocks numbers."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo1", "email": "jo@example.com", "role": "founder"}]
+        }
+        with pytest.raises(BadRequest):
+            validate_startup(data)
+
+    def test_member_invalid_email_raises_error(self):
+        """A member with an invalid email should raise an error.
+        validate_email raises ValueError not BadRequest."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "notanemail", "role": "founder"}]
+        }
+        with pytest.raises((BadRequest, ValueError)):
+            validate_startup(data)
+
     def test_one_invalid_member_among_valid_ones_raises_error(self):
         """If one member is invalid the whole request should be rejected,
         even if all other members are valid."""
@@ -281,22 +369,10 @@ class TestStartupMembers:
             "Status": "alive",
             "PreviousNames": [],
             "StartupMembers": [
-                {"name": "Jo", "email": "jo@example.com", "role": "founder"},      # valid
-                {"name": "Mary Jane", "email": "mary@example.com", "role": "CTO"}, # valid
-                {"name": "Bad1Name", "email": "bad@example.com", "role": "developer"} # invalid
+                {"name": "Jo", "email": "jo@example.com", "role": "founder"},       # valid
+                {"name": "Mary Jane", "email": "mary@example.com", "role": "CTO"},  # valid
+                {"name": "Bad1Name", "email": "bad@example.com", "role": "developer"}  # invalid
             ]
-        }
-        with pytest.raises(BadRequest):
-            validate_startup(data)
-
-    def test_member_name_with_numbers_rejected(self):
-        """A member name containing numbers should raise a BadRequest."""
-        data = {
-            "StartupName": "MyStartup",
-            "Website": "https://example.com",
-            "Status": "alive",
-            "PreviousNames": [],
-            "StartupMembers": [{"name": "Jo1", "email": "jo@example.com", "role": "founder"}]
         }
         with pytest.raises(BadRequest):
             validate_startup(data)
@@ -344,12 +420,12 @@ class TestStartupPreviousNames:
         validate_startup(data)
 
     def test_previousnames_item_too_long_raises_error(self):
-        """A PreviousNames item exceeding max length should raise a BadRequest."""
+        """A PreviousNames item exceeding max length (100) should raise a BadRequest."""
         data = {
             "StartupName": "MyStartup",
             "Website": "https://example.com",
             "Status": "alive",
-            "PreviousNames": ["A" * 51],
+            "PreviousNames": ["A" * 101],
             "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}]
         }
         with pytest.raises(BadRequest):
@@ -375,13 +451,18 @@ class TestStartupNameUnicode:
         }
         validate_startup(data)
 
+
 # ============================================================
 # Category 8 - StartupDescription Boundary Tests
 # ============================================================
- 
+
 class TestStartupDescription:
-    """Tests for the optional StartupDescription field (min=0, max=255)."""
- 
+    """Tests for the optional StartupDescription field (min=0, max=255).
+
+    Note: validate_startup_description() blocks HTML tags but has
+    no minimum length — empty string is valid.
+    """
+
     def test_missing_description_passes(self):
         """StartupDescription is optional — omitting it should pass validation."""
         data = {
@@ -392,7 +473,7 @@ class TestStartupDescription:
             "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}]
         }
         validate_startup(data)
- 
+
     def test_none_description_passes(self):
         """StartupDescription set to None should pass since it is optional."""
         data = {
@@ -404,7 +485,7 @@ class TestStartupDescription:
             "StartupDescription": None
         }
         validate_startup(data)
- 
+
     def test_empty_description_passes(self):
         """An empty string description should pass since min length is 0."""
         data = {
@@ -416,7 +497,7 @@ class TestStartupDescription:
             "StartupDescription": ""
         }
         validate_startup(data)
- 
+
     @pytest.mark.parametrize("length", [
         l for l in DescriptionConstraints.BOUNDARY_LENGTHS
         if l >= DescriptionConstraints.STARTUP_DESCRIPTION_MIN
@@ -433,7 +514,7 @@ class TestStartupDescription:
             "StartupDescription": "A" * length
         }
         validate_startup(data)
- 
+
     @pytest.mark.parametrize("length", [
         l for l in DescriptionConstraints.BOUNDARY_LENGTHS
         if l > DescriptionConstraints.STARTUP_DESCRIPTION_MAX
@@ -447,6 +528,20 @@ class TestStartupDescription:
             "PreviousNames": [],
             "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}],
             "StartupDescription": "A" * length
+        }
+        with pytest.raises(BadRequest):
+            validate_startup(data)
+
+    @pytest.mark.parametrize("description", DescriptionConstraints.INVALID_DESCRIPTIONS)
+    def test_html_in_description_rejected(self, description):
+        """HTML tags in StartupDescription should raise a BadRequest."""
+        data = {
+            "StartupName": "MyStartup",
+            "Website": "https://example.com",
+            "Status": "alive",
+            "PreviousNames": [],
+            "StartupMembers": [{"name": "Jo", "email": "jo@example.com", "role": "founder"}],
+            "StartupDescription": description
         }
         with pytest.raises(BadRequest):
             validate_startup(data)
