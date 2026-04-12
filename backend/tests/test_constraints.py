@@ -22,6 +22,8 @@ class NameConstraints:
     BOUNDARY_LENGTHS_50 = [0, 1, 2, 3, 25, 49, 50, 51, 62]
     # for fields with max 60
     BOUNDARY_LENGTHS_60 = [0, 1, 2, 3, 30, 59, 60, 61, 75]
+    # for fields with max 100
+    BOUNDARY_LENGTHS_100 = [0, 1, 2, 3, 50, 99, 100, 101, 120]
     # well outside test values
     BOUNDARY_LENGTHS_255 = [0, 1, 2, 3, 128, 254, 255, 256, 300]
 
