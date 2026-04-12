@@ -14,7 +14,7 @@ class NameConstraints:
 
     # Startup name constraints
     STARTUP_NAME_MIN = 1
-    STARTUP_NAME_MAX = 50
+    STARTUP_NAME_MAX = 100
     
 
     # Boundary test values:
@@ -92,9 +92,6 @@ class TitleConstraints:
     not whether the value is in an allowed list. Valid means it matches the
     pattern r"^[\p{L}\p{M}0-9.\-` ']+" and is between 2 and 20 characters.
  
-    Titles from colleague's TITLES set (base_validators.py):
-    mr, mr., mrs, mrs., ms, ms., miss, dr, dr., prof, prof.,
-    sir, madam, coach
     """
  
     # These are the known valid titles from the codebase
@@ -188,8 +185,8 @@ class DescriptionConstraints:
 class MemberConstraints:
     """Constraints for startup member fields."""
 
-    NAME_MIN = 1
-    NAME_MAX = 50
+    NAME_MIN = 2
+    NAME_MAX = 100
     EMAIL_MIN = 5
     EMAIL_MAX = 100
     ROLE_MIN = 2
