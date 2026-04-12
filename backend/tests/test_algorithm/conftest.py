@@ -71,7 +71,7 @@ def coach_with_break():
 # ============================================================
 
 @pytest.fixture
-def zero_meetings_vs_old_startups():
+def zero_meetings_vs_veterans():
     """One coach, mix of new and old startups, no feedback.
     Used to verify zero-meetings startups are assigned first."""
     coaches = {
