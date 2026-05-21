@@ -51,7 +51,7 @@ def run_matching_engine(today: date_type, compute_priority_fn):
             "Duration": s.Duration,
         })
 
-    # Sort slots by date → coach → slot label
+    # Sort slots by date -> coach -> slot label
     available_slots.sort(key=lambda x: (x["Date"], x["CoachId"], x["Slot"]))
 
     # -------------------
@@ -138,4 +138,3 @@ def run_matching_engine(today: date_type, compute_priority_fn):
             break
 
     return matches
-

@@ -1,6 +1,5 @@
 from .base_validators import *
 from werkzeug.exceptions import BadRequest
-from backend.validation.base_validators import auto_split_person_name
 
 def validate_coach(data, is_patch=False):
     # Allowed fields
@@ -18,25 +17,12 @@ def validate_coach(data, is_patch=False):
         "BatchesCoached"
     }
 
-    # Auto-split names before validation
-    title, first, last = auto_split_person_name(
-        data.get("FirstName"),
-        data.get("LastName")
-    )
-
-    if title:
-        data["Title"] = title
-    if first:
-        data["FirstName"] = first
-    if last:
-        data["LastName"] = last
-
     # Reject unknown fields
     for key in data.keys():
         if key not in ALLOWED_FIELDS:
             raise BadRequest({"error": f"Unknown field: {key}"})
 
-    # Required fields for POST
+    # Required fields for POSTh
     if not is_patch:
         REQUIRED_FIELDS = ["FirstName", "LastName", "Email"]
         require_fields(data, REQUIRED_FIELDS)
@@ -45,11 +31,14 @@ def validate_coach(data, is_patch=False):
         if not any(field in data for field in ALLOWED_FIELDS):
             raise BadRequest({"error": "No valid fields provided for update"})
 
+    # Collect warnings
+    warnings = []
+
     # --------------------
     # Field validations
     # --------------------
 
-    # Title (optional, letters/numbers/spaces/hyphens)
+    # Title (optional, letters/numbers/spaces/hyphens) - Might remove later and be implemented in the frontend
     if "Title" in data and data["Title"] is not None:
         cleaned = strip_whitespace(data["Title"])
         validate_string("Title", cleaned, min_len=2, max_len=20)
@@ -59,13 +48,13 @@ def validate_coach(data, is_patch=False):
     # FirstName (Unicode allowed)
     if "FirstName" in data:
         cleaned = strip_whitespace(data["FirstName"])
-        validate_unicode_name("FirstName", cleaned, min_len=1, max_len=50)
+        validate_person_name("FirstName", cleaned, min_len=1, max_len=50)
         data["FirstName"] = cleaned
 
     # LastName (Unicode allowed)
     if "LastName" in data:
         cleaned = strip_whitespace(data["LastName"])
-        validate_unicode_name("LastName", cleaned, min_len=1, max_len=60)
+        validate_person_name("LastName", cleaned, min_len=1, max_len=60)
         data["LastName"] = cleaned
 
     # Email
@@ -88,9 +77,11 @@ def validate_coach(data, is_patch=False):
     if "Expertise" in data:
         data["Expertise"] = validate_coach_expertise(data["Expertise"])
 
-    # SocialMedia (must be dict)
+    # SocialMedia (flexible + normalize)
     if "SocialMedia" in data:
-        data["SocialMedia"] = validate_social_media("SocialMedia", data["SocialMedia"])
+        cleaned, w = validate_social_media_flexible(data["SocialMedia"])
+        data["SocialMedia"] = cleaned
+        warnings.extend(w)
 
     # CoachingSessions
     if "CoachingSessions" in data:
@@ -100,4 +91,4 @@ def validate_coach(data, is_patch=False):
     if "BatchesCoached" in data:
         validate_int("BatchesCoached", data["BatchesCoached"], min_val=0)
 
-    return data
+    return data, warnings

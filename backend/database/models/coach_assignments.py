@@ -13,5 +13,5 @@ class CoachAssignments(db.Model):
 
     # Relationships
     coach = db.relationship('Coaches', back_populates='assignments', passive_deletes=True)
-    startup = db.relationship('Startups', back_populates='assignments')
+    startup = db.relationship('Startups', back_populates='assignments', passive_deletes=True)
     slot = db.relationship('CoachSlots', lazy='joined')

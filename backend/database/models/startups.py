@@ -27,6 +27,7 @@ class Startups(db.Model):
     MeetingsCount = db.Column(db.Integer, nullable=False, default=0)
 
     # Relationships
-    feedback = db.relationship('FeedbackHistory', back_populates='startup', cascade="all, delete-orphan")
-    daily_feedback = db.relationship('DailyFeedback', back_populates='startup', cascade="all, delete-orphan")
-    assignments = db.relationship('CoachAssignments', back_populates='startup')
+    feedback = db.relationship('FeedbackHistory', back_populates='startup', passive_deletes=True)
+    daily_feedback = db.relationship('DailyFeedback', back_populates='startup', passive_deletes=True)
+    assignments = db.relationship('CoachAssignments', back_populates='startup', passive_deletes=True)
+    banned_to_meet = db.relationship('BannedToMeet', back_populates='startup', passive_deletes=True)

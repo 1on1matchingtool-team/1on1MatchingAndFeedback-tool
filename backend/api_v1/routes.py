@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify
 from datetime import datetime
 from backend.matching_engine.engine import run_matching_engine
-from backend.date_utils import parse_db_date
 from backend.database.base import db
 from backend.database import (
     BannedToMeet,

@@ -1,3 +1,5 @@
+import backend.database.base
+import backend.database.models
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sqlalchemy import text
@@ -25,6 +27,12 @@ db.init_app(app)
 # Register API blueprint(s)
 from backend.api_v1.routes import api_v1
 app.register_blueprint(api_v1, url_prefix='/api/v1')
+
+# Debug route to check PRAGMA foreign_keys
+@app.route("/debug/pragma")
+def debug_pragma():
+    result = db.session.execute(text("PRAGMA foreign_keys;")).scalar()
+    return {"foreign_keys": result}
 
 # Enable CORS
 # CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})

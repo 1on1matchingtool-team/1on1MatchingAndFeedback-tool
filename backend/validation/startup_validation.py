@@ -1,5 +1,43 @@
 from .base_validators import *
 from werkzeug.exceptions import BadRequest
+from urllib.parse import urlparse
+import re
+
+# Updated Website validator (warning-based, not strict reject)
+def validate_website_with_warnings(value):
+    warnings = []
+    v = strip_whitespace(value)
+
+    if not v:
+        raise BadRequest({"error": "Website is required"})
+
+    # Block unsafe schemes
+    if v.lower().startswith(("javascript:", "data:", "file:")):
+        raise BadRequest({"error": "Website contains an unsafe URL"})
+
+    # Block script injection
+    if "<script>" in v.lower() or "</script>" in v.lower():
+        raise BadRequest({"error": "Website contains script injection"})
+
+    # Warn if http instead of https
+    if v.startswith("http://"):
+        warnings.append("Website uses http instead of https (not recommended).")
+
+    # Warn if missing scheme
+    if not v.startswith(("http://", "https://")):
+        warnings.append("Website has no scheme (http/https). Accepted as placeholder.")
+
+    # Validate structure if scheme exists
+    if v.startswith(("http://", "https://")):
+        parsed = urlparse(v)
+        if not parsed.netloc:
+            raise BadRequest({"error": "Website must contain a valid domain"})
+
+    # Warn if no dot
+    if "." not in v:
+        warnings.append("Website may not be a valid domain. Accepted as placeholder.")
+
+    return v, warnings
 
 def validate_startup(data, is_patch=False):
     # Allowed fields
@@ -34,6 +72,9 @@ def validate_startup(data, is_patch=False):
         if not any(field in data for field in ALLOWED_FIELDS):
             raise BadRequest({"error": "No valid fields provided for update"})
 
+    # Collect warnings
+    warnings = []
+
     # --------------------
     # Field validations
     # --------------------
@@ -44,23 +85,17 @@ def validate_startup(data, is_patch=False):
         validate_startup_name("StartupName", cleaned, min_len=1, max_len=100)
         data["StartupName"] = cleaned
 
-    # Website
+    # Website (warning-based)
     if "Website" in data:
-        cleaned = strip_whitespace(data["Website"])
-        validate_string("Website", cleaned, min_len=5, max_len=255)
-
-        if not cleaned.startswith(("http://", "https://")):
-            raise BadRequest({"error": "Website must start with http:// or https://"})
+        cleaned, w = validate_website_with_warnings(data["Website"])
         data["Website"] = cleaned
+        warnings.extend(w)
 
     # Status
     if "Status" in data:
         allowed_status = ["alive", "on-pause", "dead"]
         if data["Status"] not in allowed_status:
-            raise BadRequest({
-                "error": "Invalid Status",
-                "allowed": allowed_status
-            })
+            raise BadRequest({"error": "Invalid Status","allowed": allowed_status})
 
     # PreviousNames (list of strings)
     if "PreviousNames" in data:
@@ -79,6 +114,10 @@ def validate_startup(data, is_patch=False):
         if not isinstance(data["StartupMembers"], list):
             raise BadRequest({"error": "StartupMembers must be a list"})
 
+        # Enforce at least 1 member on POST
+        if not is_patch and len(data["StartupMembers"]) == 0:
+            raise BadRequest({"error": "Startup must have at least 1 member"})
+
         cleaned_members = []
         for member in data["StartupMembers"]:
             if not isinstance(member, dict):
@@ -87,7 +126,7 @@ def validate_startup(data, is_patch=False):
 
             # Name (Unicode allowed)
             cleaned_name = strip_whitespace(member["name"])
-            validate_unicode_name("member.name", cleaned_name, min_len=2, max_len=100)
+            validate_person_name("member.name", cleaned_name, min_len=2, max_len=100)
 
             # Email
             cleaned_email = strip_whitespace(member["email"])
@@ -105,9 +144,11 @@ def validate_startup(data, is_patch=False):
 
         data["StartupMembers"] = cleaned_members
 
-    # StartupSocialMedia
-    if "StartupSocialMedia" in data and data["StartupSocialMedia"] is not None:
-        validate_social_media("StartupSocialMedia", data["StartupSocialMedia"])
+    # StartupSocialMedia (flexible + normalize)
+    if "StartupSocialMedia" in data:
+        cleaned, w = validate_social_media_flexible(data["StartupSocialMedia"])
+        data["StartupSocialMedia"] = cleaned
+        warnings.extend(w)
 
     # StartupDescription (free text, emojis allowed)
     if "StartupDescription" in data and data["StartupDescription"] is not None:
@@ -117,4 +158,4 @@ def validate_startup(data, is_patch=False):
     if "MeetingsCount" in data:
         validate_int("MeetingsCount", data["MeetingsCount"], min_val=0)
 
-    return data
+    return data, warnings

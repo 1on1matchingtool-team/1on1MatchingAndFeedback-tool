@@ -11,4 +11,4 @@ class BannedToMeet(db.Model):
 
     # Relationships
     coach = db.relationship('Coaches', lazy='joined', passive_deletes=True)
-    startup = db.relationship('Startups', lazy='joined')
+    startup = db.relationship('Startups', lazy='joined', passive_deletes=True)

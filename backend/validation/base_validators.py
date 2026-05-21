@@ -7,14 +7,17 @@ from urllib.parse import urlparse
 # Constants (Group all titles and regex)
 # --------------------------------------
 
+# ----- Title Part ----
 TITLES = {
 
     "mr", "mr.", "mrs", "mrs.", "ms", "ms.", "miss",
     "dr", "dr.", "prof", "prof.", "sir", "madam", "coach"
 }
 TITLES_WITH_DOT = {"mr", "mrs", "ms", "dr", "prof"}
+# ----- Will Remove later after frontend implementation ----
+
 NAME_ALLOWED_REGEX = r"^[\p{L}’'\- ]+$"
-PHONE_REGEX = r"^[0-9]{7,20}$"
+PHONE_REGEX = r"^\+?[0-9 ]{7,20}$"
 CHAT_REGEX = r"^(?=.*[A-Za-z0-9])[A-Za-z0-9 @+_.\-():]{3,50}$"
 EXPERTISE_REGEX = r"^(?=.*[A-Za-zÀ-ÖØ-öø-ÿ])[A-Za-zÀ-ÖØ-öø-ÿ0-9 ,/&+\-()]{2,100}$"
 EMAIL_REGEX = r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,100}$"
@@ -98,28 +101,18 @@ def validate_date(field, value):
 # Custom validators (unicode name, startup name, role)
 # ----------------------------------------------------
 
-def validate_unicode_name(field, value, min_len=1, max_len=100):
+def validate_person_name(field: str, value: str, min_len: int, max_len: int) -> str:
     value = strip_whitespace(value)
     validate_string(field, value, min_len, max_len)
-    pattern = r"^[\p{L}\p{M}'\- ]+$"
+    pattern = r"^[\p{L}\p{M}\p{Zs}'\-]+$"
 
-    try:
-        import regex as reg
-        if not reg.match(pattern, value):
-            raise BadRequest({
-                "error": f"{field} contains invalid characters",
-                "allowed": "Unicode letters, accents, hyphens, apostrophes, spaces",
-                "value": value
-            })
-    except ImportError:
-        # Fallback: basic unicode letter check
-        for ch in value:
-            if ch.isalpha() or ch in ["'", "-", " "]:
-                continue
-            raise BadRequest({
-                "error": f"{field} contains invalid characters",
-                "value": value
-            })
+    import regex as reg
+    if not reg.match(pattern, value):
+        raise BadRequest({
+            "error": f"{field} contains invalid characters",
+            "allowed": "Unicode letters, accents, hyphens, apostrophes, spaces",
+            "value": value
+        })
 
     return value
 
@@ -127,14 +120,14 @@ def validate_startup_name(field, value, min_len=1, max_len=100):
     value = strip_whitespace(value)
     validate_string(field, value, min_len, max_len)
 
-    pattern = r"^[\p{L}\p{M}0-9 ._+\-]+$"
+    pattern = r"^[\p{L}\p{N}\p{M}\p{Zs}._+\-'&,/() \u200d\ufe0f\p{So}]+$"
 
     try:
         import regex as reg
         if not reg.match(pattern, value):
             raise BadRequest({
                 "error": f"{field} contains invalid characters",
-                "allowed": "Unicode letters, numbers, spaces, hyphens, underscores, dots, plus signs",
+                "allowed": "Unicode letters, numbers, spaces, hyphens, underscores, dots, plus signs, apostrophes, ampersands, slashes, commas, parentheses",
                 "value": value
             })
     except ImportError:
@@ -185,25 +178,54 @@ def validate_role(field, value, min_len=2, max_len=50):
 
     return value
 
-def validate_social_media(field_name: str, sm: dict) -> dict:
+# Flexible social media validator (used by coaches + startups)
+def validate_social_media_flexible(sm: dict):
+    warnings = []
+
+    if sm is None:
+        return None, warnings
+
     if not isinstance(sm, dict):
-        raise BadRequest({"error": f"{field_name} must be an object"})
+        raise BadRequest({"error": "SocialMedia must be an object"})
+
     cleaned = {}
 
     for key, value in sm.items():
-        if not isinstance(value, str):
-            raise BadRequest({"error": f"{field_name}.{key} must be a string"})
-        v = value.strip()
+        v = strip_whitespace(value)
 
-        # Block javascript URLs
-        if v.lower().startswith("javascript:"):
-            raise BadRequest({"error": f"{field_name}.{key} contains an unsafe URL"})
-        parsed = urlparse(v)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            raise BadRequest({"error": f"{field_name}.{key} must be a valid URL"})
+        # Block unsafe schemes
+        if v.lower().startswith(("javascript:", "data:", "file:")):
+            raise BadRequest({"error": f"SocialMedia.{key} contains an unsafe URL"})
+
+        # Block script injection
+        if "<script>" in v.lower() or "</script>" in v.lower():
+            raise BadRequest({"error": f"SocialMedia.{key} contains script injection"})
+
+        # Full URL → validate structure
+        if v.startswith(("http://", "https://")):
+            parsed = urlparse(v)
+            if not parsed.netloc:
+                raise BadRequest({"error": f"SocialMedia.{key} must contain a valid domain"})
+            cleaned[key] = v
+            continue
+
+        # Handle -> accept as plain text
+        if v.startswith("@"):
+            warnings.append(f"{key}: handle accepted as plain text")
+            cleaned[key] = v
+            continue
+
+        # Domain-like -> normalize
+        if "." in v:
+            normalized = "https://" + v
+            warnings.append(f"{key}: normalized to URL")
+            cleaned[key] = normalized
+            continue
+
+        # Otherwise accept as plain text
         cleaned[key] = v
 
-    return cleaned
+    return cleaned, warnings
 
 def validate_free_text(field, value):
     if not isinstance(value, str):
@@ -230,78 +252,6 @@ def normalize_name(text):
     text = text.replace("’", "'")
     text = " ".join(text.split())
     return text.strip()
-
-def insert_spaces_if_missing(name):
-    # Insert space between lowercase to Uppercase
-    name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
-    # Insert space after title
-    name = re.sub(r"(Mr|Mrs|Ms|Miss|Dr|Prof|Coach)\.?", r"\1 ", name, flags=re.IGNORECASE)
-    return name
-
-def remove_invalid_symbols(text):
-    # Keep letters, numbers, spaces, hyphens, apostrophes
-    return re.sub(r"[^A-Za-z0-9 '\-]", "", text)
-
-# ---------------------
-# Name splitting logic
-# ---------------------
-def auto_split_person_name(first_name, last_name):
-    title = None
-    raw_title = ""
-    # 1. Process FirstName
-    if first_name:
-        fn = normalize_name(first_name)
-        fn = insert_spaces_if_missing(fn)
-
-        # Validate before cleaning
-        validate_name_characters("FirstName", fn)
-
-        fn = remove_invalid_symbols(fn)
-        parts = fn.split()
-
-        if not parts:
-            first_name = ""
-        else:
-            # Detect title
-            first_token = parts[0].lower()
-            if first_token in TITLES:
-                raw_title = parts[0].capitalize().rstrip(".")
-
-                # Add dot only for abbreviations
-                if first_token in TITLES_WITH_DOT:
-                    title = raw_title + "."
-                else:
-                    title = raw_title
-                parts = parts[1:]
-
-            # FirstName = first remaining token
-            if parts:
-                first_name = parts[0].capitalize()
-            else:
-                first_name = raw_title if title else ""
-    else:
-        first_name = ""
-
-    # 2. Process LastName
-    if last_name:
-        ln = normalize_name(last_name)
-        ln = insert_spaces_if_missing(ln)
-
-        # Validate before cleaning
-        validate_name_characters("LastName", ln)
-
-        ln = remove_invalid_symbols(ln)
-        parts = ln.split()
-
-        # Remove duplicate first name
-        if parts and first_name and parts[0].lower() == first_name.lower():
-            parts = parts[1:]
-
-        # Capitalize each part
-        last_name = " ".join([p.capitalize() for p in parts])
-    else:
-        last_name = ""
-    return title, first_name, last_name
 
 # Alphanumeric-only validator
 def validate_no_symbols(field, value):
@@ -331,13 +281,32 @@ def validate_email(field_name, value):
 # ---------------------------------------------------------------------
 # Coach-specific validators (phone, chat, bio, expertise, social media)
 # ---------------------------------------------------------------------
+
 def validate_coach_phone(value: str) -> str:
     value = value.strip()
-    if not (7 <= len(value) <= 20):
-        raise BadRequest({"error": "Phone must be between 7 and 20 digits long"})
-    if not value.isdigit():
-        raise BadRequest({"error": "Phone must contain digits only"})
-    return value
+
+    # Basic allowed characters check
+    if not re.match(PHONE_REGEX, value):
+        raise BadRequest({
+            "error": "Phone may contain digits, spaces, and an optional leading +"
+        })
+
+    # Ensure + (plus sign) only appears at the start
+    if value.count("+") > 1 or (value.count("+") == 1 and not value.startswith("+")):
+        raise BadRequest({
+            "error": "Plus sign is only allowed at the beginning"
+        })
+
+    # Remove spaces for length check
+    digits_only = value.replace(" ", "").lstrip("+")
+    if not (7 <= len(digits_only) <= 20):
+        raise BadRequest({
+            "error": "Phone must contain 7–20 digits (excluding spaces and +)"
+        })
+
+    # Return normalized phone number
+    normalized = "+" + digits_only if value.startswith("+") else digits_only
+    return normalized
 
 def validate_coach_chat(value: str) -> str:
     if not (3 <= len(value) <= 50):

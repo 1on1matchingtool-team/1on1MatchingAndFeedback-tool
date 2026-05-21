@@ -1,5 +1,5 @@
 # Backend Documentation
-#### Updated 2 April 2026
+#### Updated 20 May 2026
 
 ## Table of Contents
 
@@ -141,6 +141,8 @@ This is the main entry point of the backend. It initializes Flask, configures th
 - Provides health and database connectivity checks
 - Enables CORS for frontend integration
 - Ensures consistent JSON error responses
+- Ensures all models are imported before executing `db.create_all()` to fix missing tables and foreign keys.
+- Handles `IntegrityError` for duplicate coach emails, returning clean JSON.
 
 ### 4.2 **`database/__init__.py`**
 
@@ -157,7 +159,8 @@ This file imports and exposes all database models, so they can be accessed easil
 
 ### 4.3 **`database/base.py`**
 
-Defines and initializes the shared SQLAlchemy database object used across the backend.
+- Defines and initializes the shared SQLAlchemy database object used across the backend.
+- Ensures SQLAlchemy metadata is initialized and foreign key constraints are enforced (SQLite PRAGMA enabled in app.py).
 
 ```python
 from flask_sqlalchemy import SQLAlchemy
@@ -174,8 +177,7 @@ Key Models are presented in **Database Models**.
 ### 4.5 Documentation and Schema Files
 
 #### 4.5.1 **`backend/dataGen/info/db_model_updated_mar2026.png`**
-Updated ERD (Entity–Relationship Diagram) reflecting the current database schema (March 2026 Update).
-Includes the remastered Coaches model (`Title`, `FirstName`, `LastName`) and corrected relationships with cascade delete behavior.
+Updated ERD (Entity–Relationship Diagram) reflecting the current database schema.
 
 #### 4.5.2 **`backend/dataGen/info/rules.md`**
 Contains matching logic, constraints, and business rules.
@@ -186,12 +188,18 @@ Includes sample data and meeting count tests used during development.
 Also documents cascade delete test scenarios performed in March 2026. 
 
 #### 4.5.4 **`schema_clean.sql`**
-- Clean SQL schema used for generating the ERD. 
+- Clean SQL schema used for generating the ERD, reflects:
+  - DailyFeedback / FeedbackHistory → StartupId NULL
+  - CoachAssignments / BannedToMeet → StartupId NOT NULL
 - Uses unquoted identifiers and SQLite-compatible types.
-- Updated to reflect the new Coaches fields (`Title`, `FirstName`, `LastName`) and corrected foreign key constraints with `ON DELETE CASCADE`.
 
 #### 4.5.5 **`schema.sql`**
-Full schema used by the backend, now updated with structured coach names, JSON fields, and cascade delete rules across all models. 
+Full backend schema with:
+- Updated constraints
+- Unique email for Coaches
+- Correct delete behavior
+- JSON fields
+- Updated name fields
 
 #### 4.5.6 **`engine.py`**
 - Contains the core matching logic used to assign startups to coach slots.
@@ -200,6 +208,7 @@ Full schema used by the backend, now updated with structured coach names, JSON f
 #### 4.5.7 **`date_utils.py`**
 - Provides centralized date‑parsing utilities used across routes and the matching engine. 
 - Standardizes how dates are interpreted, prevents inconsistent formats, and avoids circular imports.
+- Ensures consistent date parsing for delete logic and slot filtering.
 
 ---
 
@@ -210,27 +219,42 @@ Each model corresponds to a table in `sauna.db` and follows a consistent structu
 - clearly defined columns
 - foreign‑key relationships
 - JSON‑based fields stored as TEXT
-- full CRUD support
-- unified validation for `POST` and `PATCH`
-The complete schema is shown in the ERD `(db_model_updated_mar2026.png)`.
+- unified validation for `POST`/`PATCH`
+- delete behavior mainly for startup and coach
+- The full schema is shown in `(db_model_updated_mar2026.png)`.
 
 ### 5.1 Startups
 Represents a startup participating in the program.
 
 **Key characteristics:**
-- Uses strict validation for JSON fields (`StartupMembers`, `StartupSocialMedia`, `PreviousNames`)
+- Uses strict validation for JSON fields:
+  - `StartupMembers`(human name rules, no emoji/digits)
+  - `StartupSocialMedia`: (warning‑based)
+  - `Website`: (warning‑based)
+- Tracks automatic name history in `PreviousNames` on `PATCH`
 - Tracks metadata such as `Status`, `MeetingsCount`, and `Website`
 - Connected to: `DailyFeedback`, `FeedbackHistory`, `CoachAssignments`, `BannedToMeet`
-- Deleting a startup cascades through all dependent records
+- Delete behavior:
+   - DailyFeedback.StartupId → set to NULL
+   - FeedbackHistory.StartupId → set to NULL
+   - CoachAssignments.StartupId → NOT NULL (blocks deletion)
+   - BannedToMeet.StartupId → NOT NULL (blocks deletion)
+   - Startup can only be deleted after dependent rows are removed
 
 ### 5.2 Coaches
 Represents a coach in the program.
 
 **Key characteristics:**
 - Uses structured name fields: `Title`, `FirstName`, `LastName`
-- Includes profile fields (email, phone, chat, expertise, social media)
+- Human name validation: Unicode letters + accents only (no emoji/digits)
+- Email is unique; duplicate email returns clean error
+- SocialMedia is warning‑based and flexible
 - Connected to: `CoachSlots`, `CoachAssignments`, `DailyFeedback`, `FeedbackHistory`, `BannedToMeet`
-- Deleting a coach now triggers selective cascade delete (see [Cascade Delete Behavior](#cascade-delete-behavior) section)
+- Delete behavior:
+  - Future slots + assignments removed
+  - Past assignments kept
+  - DailyFeedback.CoachId → NULL
+  - FeedbackHistory.CoachId → NULL
 
 ### 5.3 CoachSlots
 Represents available time slots for each coach.
@@ -242,31 +266,32 @@ Represents available time slots for each coach.
 - Deleting a coach removes all future slots; past slots remain for history
 
 ### 5.4 CoachAssignments
-Represents the mapping between a coach, a startup, and a specific slot.
+Represents the mapping between a coach, a startup, and a specific slot and tracks scheduled 1‑on‑1 meetings.
 
 **Key characteristics:**
 - Includes `CoachId`, `StartupId`, `SlotId`, `Date`, `Duration`, `Slot`
-- Tracks scheduled 1‑on‑1 meetings
+- `StartupId` is NOT NULL (blocks startup deletion)
 - Deleting a coach removes future assignments; past assignments remain
+- Startup deletion requires manual removal of assignments first
 
 ### 5.5 DailyFeedback
-Represents daily feedback given after each meeting.
+Represents daily feedback after each meeting.
 
 **Key characteristics:**
-- Stores `FeedbackText`, and `Date`
+- Stores `FeedbackText`and `Date`
 - Linked to `CoachId` and `StartupId`
 - Forms the basis for historical feedback tracking
-- CoachId becomes NULL when a coach is deleted
-- Past feedback remains
+- CoachId and StartupId becomes NULL when deleted
+- Feedback is never deleted automatically (Past feedback remains)
 
 ### 5.6 FeedbackHistory
 Represents historical revisions of feedback.
 
 **Key characteristics:**
-- Stores original and updated grades
+- Stores original + updated grades and timestamps
 - Linked to `DailyFeedbackId`, `StartupId`, and `CoachId`
 - Uses corrected field names: `StartupTextFeedback`, `CoachTextFeedback`, `UpdatedStartupGrade`, `DateUpdatedStartupGrade`
-- CoachId becomes NULL when a coach is deleted
+- CoachId and StartupId becomes NULL when deleted
 - Never deleted automatically
 
 ### 5.7 BannedToMeet
@@ -274,9 +299,10 @@ Represents restrictions preventing certain coach–startup meetings.
 
 **Key characteristics:**
 - Stores `DateFrom`, `DateTo`, and `Reason`
-- Enforces logical constraints (e.g., `DateTo ≥ DateFrom`)
+- Enforces logical constraints (`DateTo ≥ DateFrom`)
 - Used by the matching engine to avoid invalid pairings
-- Deleted when either the coach or startup (parent) is deleted
+- `StartupId` is **NOT NULL** → blocks startup deletion
+- Rows remain even if startup is deleted (must be removed manually first)
 
 ---
 
@@ -294,6 +320,7 @@ All POST/PATCH requests pass through the unified validation layer, which enforce
 - JSON shape rules  
 - unknown‑field rejection  
 - logical constraints (e.g., `DateTo ≥ DateFrom`)  
+- Website + SocialMedia warning system
 - consistent JSON error responses
 - limit length of characters
 
@@ -324,7 +351,7 @@ Below is a summary of each model’s endpoints and example request/response form
 ### **6.3.1 Startups**
 
 - **Endpoints**: 
-- `GET /startups`
+- `GET /startups/all`
 - `GET /startups/<id>`
 - `POST /startups`
 - `PATCH /startups/<id>`
@@ -341,7 +368,7 @@ Below is a summary of each model’s endpoints and example request/response form
     {
       "name": "Alice Founder",
       "email": "alice@example.com",
-      "level": "primary"
+      "role": "CEO"
     }
   ]
 }
@@ -364,7 +391,7 @@ Status must be one of the allowed values
 ### **6.3.2 Coaches**
 
 - **Endpoints**: 
-- `GET /coaches`
+- `GET /coaches/all`
 - `GET /coaches/<id>`
 - `POST /coaches`
 - `PATCH /coaches/<id>`
@@ -399,7 +426,7 @@ Update coach’s contact info *(The phone number is only the example.)*
 ### **6.3.3 Coach Slots**
 
 - **Endpoints**: 
-- `GET /coach_slots`
+- `GET /coach_slots/all`
 - `GET /coach_slots/<id>`
 - `POST /coach_slots`
 - `PATCH /coach_slots/<id>`
@@ -410,7 +437,7 @@ Update coach’s contact info *(The phone number is only the example.)*
 ```json
 {
   "CoachId": 1,
-  "Date": "2026-03-01",
+  "Date": "2026-03-30",
   "Slot": "10:00–10:20",
   "Duration": 20,
   "IsBreak": false
@@ -433,7 +460,7 @@ Update slot duration
 ### **6.3.4 Coach Assignments**
 
 - **Endpoints**: 
-- `GET /coach_assignments`
+- `GET /coach_assignments/all`
 - `GET /coach_assignments/<id>`
 - `POST /coach_assignments`
 - `PATCH /coach_assignments/<id>`
@@ -443,9 +470,13 @@ Update slot duration
 
 ```json
 {
-  "CoachId": 2,
-  "StartupId": 5,
-  "SlotId": 12
+  "StartupId": 1,
+  "StartupName": "Test Startup",
+  "CoachId": 1,
+  "SlotId": 1,
+  "Slot": "10:00-11:00",
+  "Duration": 60,
+  "Date": "2026-03-30"
 }
 ```
 
@@ -465,7 +496,7 @@ Update assigned slot
 ### **6.3.5 Daily Feedback**
 
 - **Endpoints**: 
-- `GET /daily_feedback`
+- `GET /daily_feedback/all`
 - `GET /daily_feedback/<id>`
 - `POST /daily_feedback`
 - `PATCH /daily_feedback/<id>`
@@ -476,8 +507,8 @@ Update assigned slot
 ```json
 {
   "CoachId": 1,
-  "StartupId": 3,
-  "Date": "2026-03-20",
+  "StartupId": 1,
+  "Date": "2026-03-30",
   "FeedbackText": "Great progress today."
 }
 ```
@@ -498,11 +529,11 @@ Update feedback text
 ### **6.3.6 Feedback History**
 
 - **Endpoints**: 
-- `GET /feedback_history`
+- `GET /feedback_history/all`
 - `GET /daily_feedback/<id>`
 - `POST /daily_feedback`
 - `PATCH /daily_feedback/<id>`
-- `DELETE daily_feedback/<id>`
+- `DELETE daily_feedback/<id>` *(manual test only)*
 
 **Notes:** *`FeedbackHistory` shouldn't be deleted but the DELETE method has been used for manual testing.*
 
@@ -510,13 +541,17 @@ Update feedback text
 
 ```json
 {
+  "StartupId": 1,
   "StartupName": "Test Startup",
-  "DateFeedbackOriginal": "2026-03-30",
+  "CoachId": 1,
+  "DailyFeedbackId": 1,
   "StartupGrade": 4,
   "CoachGrade": 5,
-  "DailyFeedbackId": 10,
-  "StartupId": 3
+  "StartupTextFeedback": "Startup feedback",
+  "CoachTextFeedback": "Coach feedback",
+  "DateFeedbackOriginal": "2026-03-30"
 }
+
 ```
 
 #### Example PATCH (Valid)
@@ -535,11 +570,11 @@ Update updated grade
 ### **6.3.7 Banned To Meet**
 
 - **Endpoints**: 
-- `GET /banned_to_meet`
+- `GET /banned_to_meet/all`
 - `GET /banned_to_meet/<id>`
 - `POST /banned_to_meet`
 - `PATCH /banned_to_meet/<id>`
-- `DELETE banned_to_meet/<id>`
+- `DELETE banned_to_meet/<id>` *(manual test only)*
 
 **Notes:** *`BannedToMeet` shouldn't be deleted but the DELETE method has been used for manual testing.*
 
@@ -572,38 +607,41 @@ Update DateTo
 
 ## 7. Validation Testing
 
-The backend features a unified validation layer for all `POST` and `PATCH` requests across seven models. Validation is currently enforces stricter rules, updated character limits, consistent JSON shapes, and centralized name‑splitting logic for coaches and startups.
+The backend features a unified validation layer for all `POST` and `PATCH` requests across seven models. Validation enforces strict field rules, updated character limits, human‑name rules, warning‑based URL checks, and consistent JSON error responses.
 
-### 7.1 Validation Philosophy
-
-All POST and PATCH requests follow the same validation principles:
-
-#### 7.1.1 Strict field validation: 
-Only known fields are allowed; unknown fields trigger an error.
-#### 7.1.2 Type checking: 
-Every field must match the expected primitive type (string, integer, boolean, list, object).
-#### 7.1.3 JSON shape validation: 
-Nested structures (`StartupMembers`, `SocialMedia`, etc.) must follow the correct schema.
-#### 7.1.4 Logical constraints
-For example:
-   - `DateTo` ≥ `DateFrom` 
-   - Grades must be integers within allowed ranges
-   - Foreign keys must reference existing records
-#### 7.1.5 Whitespace handling
-Empty strings, whitespace‑only values, and invalid Unicode sequences are rejected.
-#### 7.1.6 PATCH partial updates
-Only provided fields are validated and updated; empty PATCH bodies are rejected.
-#### 7.1.7 Consistent error responses
-All validation failures return
+### 7.1 Core Validation Rules
+1. **Strict field validation:** unknown fields → error
 ```json
-{ "error": "Description of the validation error" }
+{ "error": "Unknown field: RandomField" }
 ```
-#### 7.1.8 Record existence checks
-PATCH/DELETE on non‑existent IDs return
+2. **Type checking:** each field must match expected primitive type
+```json
+{ "error": "Duration must be an integer" }
+```
+3. **JSON shape validation:** nested fields (`StartupMembers`, `SocialMedia`) must follow schema
+```json
+{ "error": "StartupMembers must be a list of objects" }
+```
+4. **Logical constraints:** `DateTo ≥ DateFrom`, grades 1–5, valid foreign keys
+5. **Whitespace handling:** empty/whitespace strings rejected
+6. **PATCH rules:** must contain at least one valid field
+```json
+{ "error": "No valid fields provided for update" }
+```
+7. **Record existence:** missing IDs
 ```json
 { "error": "Not found" }
 ```
-#### 7.1.9 Updated character limits
+8. **Consistent error format:** all failures return
+```json
+{ "error": "Description of the validation error" }
+```
+9. **Warnings for URL‑like fields:** Website + SocialMedia return `"warnings": []` when format is imperfect
+```json
+{ "warnings": ["Website missing protocol (http/https)"] }
+```
+
+### 7.2 Character limits
 All string fields now follow strict min/max lengths (see table below).
 
 | Field Type            | Allowed Length   |
@@ -611,280 +649,26 @@ All string fields now follow strict min/max lengths (see table below).
 | Coach Title           | 2-20 chars       |
 | Coach FirstName       | 1–50 chars       |
 | Coach LastName        | 1–60 chars       |
-| StartupName           | 2–100 chars      |
+| StartupName           | 1–100 chars      |
 | FeedbackText          | up to 2000 chars |
-| Email                 | 2–200 chars      |
+| Email                 | 2–100 chars      |
 | Reason (BannedToMeet) | up to 500 chars  |
+| Bio                   | up to 500 chars  |
 
 This type of validation rejects empty strings, whitespace‑only strings, and strings exceeding limits.
 
-#### 7.1.10 Name‑Splitting Rule
-The backend now uses a centralized name‑splitting utility for **Coaches**:
-- Accepts any Unicode name (accents, emoji, multilingual characters)
-- Automatically extracts:
-   - Title (optional)
-   - FirstName
-   - LastName
-- Handles:
-   - multiple spaces
-   - hyphenated names
-   - middle names
-   - titles like “Dr.”, “Prof.”, “Mr.”, “Ms.”
-- Ensures consistent formatting across:
-   - POST/PATCH validation
-   - migration scripts
-   - runtime logic
-
-**StartupName does NOT use splitting**: it is validated as a single string using validate_startup_name() rules.
-
-#### 7.1.11 Invalid Character Type Validation
-The backend enforces strict character‑type rules depending on the purpose of each field. The functions are provided from `base_validatiors.py`.
-
- **1. `validate_unicode_name` (Coach names only)**
-
-Used for FirstName, LastName, and internally during name‑splitting.
-- **Allows:** Unicode letters (`\p{L}`, `\p{M}`), Accents, Spaces, Hyphens (`-`), Apostrophes (`'`)
-- **Blocks:** Numbers, Symbols (`@#$%^&*…`), Emojis, Punctuation (except `'` and `-`)
-
-**2. `validate_startup_name` (StartupName only)**
-
-Startup names allow a wider range of characters.
-- **Allows:** Unicode letter, Numbers, Spaces, Hyphens (`-`), Underscores (`_`), Dots (`.`) Plus signs (`+`)
-- **Blocks:** All other symbols, Emojis, Slashes, brackets, quotes, etc.
-
-**3. `validate_role` (StartupMembers → role field)**
-
-- **Allows:** Letters, Numbers, Spaces, Hyphens (`-`), Dots (`.`), Backticks (`), Apostrophes (")
-- **Blocks:** Symbols not listed above, Emojis
-
-**4. `validate_social_media`**
-
-- Must be a dict
-- Keys must be strings
-- Values must be valid URLs
-- Blocks javascript: URLs for safety
-
-**5. `validate_free_text`**
-
-Used for fields like FeedbackText, Bio, etc.
-**Allows:**
-- Everything (including emoji)
-- As long as it is a string and within length limits
-
-**6. `validate_no_symbols`**
-
-Used for fields that must be strictly alphanumeric.
-- **Allows:** Letters, Numbers, Spaces
-- **Blocks:** All symbols
-
-**7. `validate_name_characters`**
-
-Used inside name‑splitting to ensure raw name tokens contain only:
-Unicode letters, Hyphens (`-`), Apostrophes (`"`), Hyphens (`-`), Spaces
-
-### 7.2 Main Validation Cases (Across All Models)**
-
-This subsection consolidates key validation scenarios from all seven models, representing crucial patterns of validation behavior essential for developers' understanding.
-
-### 7.2.1 Unknown Fields
-Occurs when the request contains keys not defined in the model.
-
-**Example:**
-```json
-{ "RandomField": "test" }
-```
-
-**Error:**
-```json
-{ "error": "Unknown field: RandomField" }
-```
-
-### 7.2.2 Wrong Data Types
-Triggered when a field has the wrong primitive type.
-
-**Examples:**
-```json
-{ "Email": 123 }
-{ "Duration": "sixty" }
-{ "StartupId": "five" }
-{ "FirstName": 99 }
-```
-
-**Errors:**
-```json
-{ "error": "Email must be a string" }
-{ "error": "Duration must be an integer" }
-{ "error": "StartupId must be an integer" }
-{ "error": "FirstName must be a string" }
-```
-
-### 7.2.3 Wrong JSON Shapes
-Used for nested structures that must follow a specific schema.
-
-**Examples:**
-```json
-{ "StartupMembers": ["Alice"] }
-{ "SocialMedia": "linkedin.com/john" }
-{ "StartupSocialMedia": [] }
-```
-
-**Errors:**
-```json
-{ "error": "StartupMembers must be a list of objects" }
-{ "error": "SocialMedia must be an object" }
-{ "error": "StartupSocialMedia must be an object" }
-```
-
-### 7.2.4 Invalid Enum Values
-Used when a field must match a predefined set of allowed values.
-
-**Example:**
-```json
-{ "Status": "Active" }
-```
-
-**Error:**
-```json
-{ "error": "Status must be one of: alive, on-pause, dead" }
-```
-
-### 7.2.5 Invalid Date Formats
-All dates must follow ISO format `YYYY-MM-DD`.
-
-**Example:**
-```json
-{ "Date": "March 1st" }
-```
-
-**Error:**
-```json
-{ "error": "Date must be in YYYY-MM-DD format" }
-```
-
-### 7.2.6 Logical Constraints
-Used when fields must satisfy a relationship.
-
-**Example:**
-```json
-{ "DateFrom": "2026-03-10", "DateTo": "2026-03-01" }
-```
-
-**Error:**
-```json
-{ "error": "DateTo must be greater than or equal to DateFrom" }
-```
-
-### 7.2.7 Empty PATCH Body
-PATCH must include at least one valid field.
-
-**Example:**
-```json
-{}
-```
-
-**Error:**
-```json
-{ "error": "No valid fields provided for update" }
-```
-
-### 7.2.8 Record Not Found
-Occurs when the ID does not exist in the database.
-
-**Example:**
-`PATCH /startups/9999`
-
-**Error:**
-```json
-{ "error": "Not found" }
-```
-
-### 7.2.9 Character Limits
-Triggered when a string exceeds or falls below allowed length.
-
-**Example:** (Too Long StartupName - *Letter A repeated 150 times*)
-```json
-{ "StartupName": "A".repeat(150) }
-```
-
-**Error:**
-```json
-{ "error": "StartupName must be between 1 and 100 characters" }
-```
-
-**Example:** (Whitespace Only)
-```json
-{ "FirstName": "   " }
-```
-
-**Error:**
-```json
-{ "error": "FirstName cannot be empty or whitespace" }
-```
-
-### 7.2.10 Name Splitting
+### 7.3 Name Rules (Human-Based)
+Used for Coaches `FirstName`/`LastName` and `StartupMembers`:
+- **Allows:** Unicode letters, accents, spaces, hyphens, apostrophes
+- **Blocks:** digits, emoji, symbols
+- Length enforced per field
 
 **Valid Example:**
 ```json
-{
-  "FirstName": "MrJosh",
-  "LastName": "JoshMichaelSmith"
-}
+{ "FirstName": "María-José" }
 ```
-**Result after splitting:**
-- Title: "Mr."
-- FirstName: "Josh"
-- LastName: "Michael Smith"
 
 **Invalid Example:**
-```json
-{ "FirstName": "John 123 Mentor" }
-```
-
-**Error:**
-```json
-{ "error": "FirstName contains invalid characters" }
-```
-
-**StartupName Example** (No Splitting)
-```json
-{ "StartupName": "NextGen AI+Labs" }
-```
-
-It is valid because Startup names allow letters, numbers, spaces, hyphens, underscores, dots, and plus signs.
-
-### 7.2.11 Invalid Character Types
-
-**Example:** Invalid Coach Name Characters (`validate_unicode_name`)
-```json
-{ "FirstName": "Anna@" }
-```
-
-**Error:**
-```json
-{ "error": "FirstName contains invalid characters" }
-```
-
-**Example:** Invalid Role Characters (`validate_role`)
-```json
-{ "Role": "CEO!!!" }
-```
-
-**Error:**
-```json
-{ "error": "Role contains invalid characters" }
-```
-
-**Example:** Invalid SocialMedia URL
-```json
-{ "SocialMedia": { "linkedin": "javascript:alert(1)" } }
-```
-
-**Error:**
-```json
-{ "error": "SocialMedia.linkedin contains an unsafe URL" }
-```
-
-**Example:** Invalid Name Characters During Splitting (`validate_name_characters`)
 ```json
 { "FirstName": "John💥" }
 ```
@@ -894,14 +678,95 @@ It is valid because Startup names allow letters, numbers, spaces, hyphens, under
 { "error": "FirstName contains invalid characters" }
 ```
 
+### 7.4 StartupName Validation
+StartupName is not split and allows:
+- letters, numbers, symbols, emoji
+- length ≤ 100
+
+**Valid Example:** 
+```json
+{ "StartupName": "NextGen AI🚀 Labs++" }
+```
+StartupName allows emoji + symbols.
+
+### 7.5 SocialMedia Validation (Warning-Based)
+- Accepts plain text, handles, partial URLs, full URLs
+- Warning‑based
+- Rejects only unsafe schemes (`javascript:`)
+
+**Warning Example:** 
+```json
+{ "SocialMedia": { "linkedin": "linkedin.com/in/john" } }
+```
+
+Returns:
+```json
+{ "warnings": ["linkedin missing protocol (http/https)"] }
+```
+
+**Invalid Example:**
+```json
+{ "SocialMedia": { "linkedin": "javascript:alert(1)" } }
+```
+
+**Error:**
+```json
+{ "error": "SocialMedia.linkedin contains an unsafe URL" }
+```
+
+### 7.6 Website Validation (Warning-Based)
+- Accepts URL‑like strings
+- Warns on missing protocol or `http://`
+- Rejects only empty, whitespace, `<script>`, `javascript:`
+
+**Warning Example:** 
+```json
+{ "Website": "example.com" }
+```
+
+Returns:
+```json
+{ "warnings": ["Website missing protocol (http/https)"] }
+```
+
+**Invalid Example:**
+```json
+{ "Website": "javascript:alert(1)" }
+```
+
+**Error:**
+```json
+{ "error": "Invalid website URL" }
+```
+
+### 7.7 Duplicate Email (Coaches)
+
+**Invalid Example:**
+```json
+{ "Email": "existing@example.com" }
+```
+
+**Error:**
+```json
+{ "error": "Email already exists" }
+```
+
+### 7.8 StartupName History Tracking (PATCH)
+
+```json
+{ "StartupName": "New Name" }
+```
+Automatically appends to `PreviousNames`.
+
 ---
 
 ## 8. Cascade Delete Behavior
 
-The backend has currently used a hybrid cascade and logic-based deletion system that retains historical data and safely removes future scheduling data associated with deleted coaches. This is achieved through SQL ON DELETE rules combined with custom logic at the Coach deletion endpoint.
+The backend uses a **hybrid deletion system** combining SQL foreign‑key rules with custom logic.
+The goal is to preserve historical data, protect reporting integrity, and avoid accidental data loss.
 
 ### 8.1 Delete a Coach
-Deleting a coach now triggers selective cleanup instead of full cascade deletion.
+Deleting a coach now triggers selective cleanup instead of full cascade.
 
 **8.1.1 Future data is deleted**
 These records are removed because they represent upcoming commitments: 
@@ -917,38 +782,52 @@ To preserve program history while removing personal identifiers:
 - `FeedbackHistory.CoachId` to `NULL`
 
 **8.1.4 Restrictions are removed**
-All BannedToMeet entries involving the coach are deleted.
+All `BannedToMeet` rows involving the coach are deleted.
 
 ### 8.2 Delete a Startup
-Startup deletion remains a **full cascade**, because startups do not require historical preservation in the same way coaches do.
-Removing a startup cascades through all related tables:
-**DailyFeedback**, **FeedbackHistory**, **CoachAssignments**, **BannedToMeet**
+Startup deletion **does NOT use cascade delete**.
+Instead, it follows a manual, controlled sequence:
+
+#### 8.2.1 What becomes NULL
+- DailyFeedback.StartupId → NULL
+- FeedbackHistory.StartupId → NULL
+Feedback is preserved but anonymized.
+
+#### 8.2.2 What must stay (NOT deleted)
+- CoachAssignments (StartupId NOT NULL)
+- BannedToMeet (StartupId NOT NULL)
+These rows must remain for historical and audit purposes.
+
+#### 8.2.3 Required delete sequence
+A startup cannot be deleted until dependent rows are removed:
+1. Delete all CoachAssignments for that Startup
+2. Delete all BannedToMeet rows for that Startup
+3. Then DELETE the Startup
 
 ### 8.3 Deleting a CoachSlot
-When a slot is deleted, All **CoachAssignments** linked to that slot are automatically removed.
+When a slot is deleted, All **CoachAssignments** linked to that slot are automatically removed. It prevents orphaned assignments.
 
 ### 8.4 Deleting DailyFeedback
-All **FeedbackHistory** entries referencing that **DailyFeedback** are deleted. It prevents orphaned history entries.
+All **FeedbackHistory** entries referencing that **DailyFeedback** are deleted. It prevents orphaned history rows.
 
 ### 8.5 Summary of Cascade Rules
 
-| Parent Deleted    | Behaior                                                                             |
-|-------------------|-------------------------------------------------------------------------------------|
-| Coach             | Delete future slots and assignments, preserve past, anonymize feedback, delete bans |
-| Startup           | Delete all related feedback, history, assignments, bans                             |
-| CoachSlot         | Delete related assignments                                                          |
-| DailyFeedback     | Delete related FeedbackHistory                                                      |
+| Parent Deleted    | Behaior                                                                         |
+|-------------------|---------------------------------------------------------------------------------|
+| Coach             | Delete future slots + assignments; keep past; anonymize feedback; delete bans   |
+| Startup           | Anonymize feedback; **assignments + bans must be removed manually**; no cascade |
+| CoachSlot         | Delete related assignments                                                      |
+| DailyFeedback     | Delete related FeedbackHistory                                                  |
 
 ### 8.6 Testing Summary
 
 Cascade behavior was verified through a complete end‑to‑end test sequence, covering past and future slots, assignments, feedback, and restrictions.
 The testing confirms that:
-- Future slots and assignments associated with the deleted coach were removed.
-- Past slots and assignments were retained for historical accuracy.
-- DailyFeedback and FeedbackHistory entries were preserved, with the CoachId anonymized.
-- BannedToMeet entries related to the deleted coach were eliminated.
-- No orphaned foreign keys remained after the deletion process.
-- Unrelated records and past program history were not impacted.
+- Coach deletion removes future data, preserves past, anonymizes feedback
+- Startup deletion requires manual cleanup (assignments + bans)
+- Feedback tables correctly set IDs to NULL
+- No orphaned foreign keys remain
+- Historical integrity is preserved
 
 All cascade paths behaved as expected and matched the SQL schema and ERD.
 
@@ -956,43 +835,48 @@ All cascade paths behaved as expected and matched the SQL schema and ERD.
 
 ## 9. API v1 (Routing Layer)
 The `api_v1` folder contains the full routing layer for the backend, implemented using Flask Blueprints. 
-These routes reveal all CRUD operations for the seven core models, along with filtering logic, validation, and the matching engine endpoint.
+It exposes all CRUD operations, applies validation, returns warnings, and handles delete logic exactly as defined in the models.
 
 ### 9.1 Purpose of `api_v1`
 - Provide clean, modular routing using Blueprints
 - Expose CRUD endpoints for all database models
 - Apply validation, date parsing, and consistent error handling
-- Serve as the integration point for the matching engine (POST /match)
+- Enforce date parsing and foreign‑key rules
+- Integrate the matching engine (POST /match)
+- Ensure consistent JSON responses across all routes
 
 ### 9.2 Route Structure
 These routes form the active API v1 layer and interact directly with the database.
 Each endpoint follows consistent validation, filtering, and JSON response rules.
 
-| Endpoint            | Method | Description                                        |
-|---------------------|--------|----------------------------------------------------|
-| /coaches	           | GET	   | Retrieve all coaches                           |
-| /coaches	           |   POST	 | Create a new coach                               |
-| /coaches/	          | PATCH	 | Update coach information                         | 
-| /coach_slots	       | GET	   | Retrieve coach slots (supports future/past)    |   
-| /coach_slots	       | POST	  | Create a new coach slot                         |  
-| /daily_feedback	    | GET	   | Get daily feedback (requires startupId)        |   
-| /feedback_history	  | GET	   | Get historical feedback (requires startupId)       |
-| /banned_to_meet	    | POST	  | Create a ban between coach and startup          |   
-| /coach_assignments  | 	GET	  | Retrieve generated assignments                  |   
-| /match	             | POST	  | Run the matching engine and create assignments  |   
+**Active API v1 Endpoints**
+
+| Endpoint           | Method        | Description                                                                     |
+|--------------------|---------------|---------------------------------------------------------------------------------|
+| /coaches/	        | GET/POST	     | List or create coaches (name validation + duplicate email check)                |
+| /coaches/<id>	     | PATCH/DELETE	 | Update coach fields or delete coach (future-only cleanup)                       |
+| /startups/         | GET/POST	     | List or create startups (Website/SocialMedia warnings)                          | 
+| /startups/<id>     | PATCH/DELETE	 | Update startup (name history tracking) or delete (manual cleanup required)      |   
+| /coach_slots	      | GET/POST      | Retrieve or create coach slots                                                  |  
+| /coach_assignments | GET/POST	     | Retrieve or create assignments                                                  |  
+| /match	            | POST	         | Run the matching engine and create assignments                                  |   
 
 ### 9.3 Matching Engine Endpoint
 `POST /api/v1/match` runs the matching engine, which:
 - Filters valid coach slots
-- Computes startup priority
+- Applies priority rules
 - Enforces bans
 - Prevents double‑booking
 - Writes assignments to the database
+- Returns a clean JSON summary
+Matching logic is unaffected by validation changes (name rules, URL warnings, etc.).
 
 ### 9.4 Status
-- Fully implemented
-- Replaces all earlier prototype routes
-- Old placeholder endpoints have been removed or replaced
+- Fully implemented and stable
+- All prototype routes removed
+- All validation, warnings, and delete behavior integrated
+- Startup deletion now requires manual cleanup (assignments + bans)
+- Coach deletion uses selective cleanup (future only)
 
 ---
 
