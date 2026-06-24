@@ -1,3 +1,4 @@
+//import React, { useState, useEffect } from "react";
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home/Home";
@@ -13,26 +14,40 @@ import AddTime from "./pages/AddCoaches/AddTime";
 import UserProfile from "./pages/UserHome/UserProfile"
  // New user profile page
 // New user meetings page
-import { StrictMode } from "react";
+// import { StrictMode } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import CoachList from "./pages/AddCoaches/CoachList";
 
 function App() {
   const CLIENT_ID = "884933282507-roa52cm6ntvi89uu89mebusvv13hppgu0l5p.apps.googleusercontent.com";
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState(null); // 'admin' or 'user'
-  const [userData, setUserData] = useState(null); // Store user data
-
-  const handleLogin = (role = 'admin', data = null) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+  localStorage.getItem("isAuthenticated") === "true");
+  const [userRole, setUserRole] = useState(
+  localStorage.getItem("userRole") || null); // 'admin' or 'user'
+  const [userData, setUserData] = useState(
+  JSON.parse(localStorage.getItem("userData")) || null); // Store user data
+    
+    
+  const handleLogin = (role = "admin", data = null) => {
     setIsAuthenticated(true);
     setUserRole(role);
     setUserData(data);
+
+    localStorage.setItem("isAuthenticated", "true");
+    localStorage.setItem("userRole", role);
+
+    if (data) {
+        localStorage.setItem("userData", JSON.stringify(data));
+    }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUserRole(null);
     setUserData(null);
+
+    localStorage.removeItem("isAuthenticated");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userData");
   };
 
   const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -60,7 +75,6 @@ function App() {
   };
 
   return (
-    <StrictMode>
       <GoogleOAuthProvider clientId={CLIENT_ID}>
         <Router>
           <Routes>
@@ -69,9 +83,9 @@ function App() {
               path="/login"
               element={<LoginPage onLogin={handleLogin} />}
             />
-            <Route 
-              path="/SignupPage"  
-              element={<SignupPage onLogin={handleLogin} />} 
+            <Route
+              path="/SignupPage"
+              element={<SignupPage onLogin={handleLogin} />}
             />
 
             {/* Admin routes */}
@@ -103,7 +117,7 @@ function App() {
               path="/view-coaches"
               element={
                 <ProtectedRoute adminOnly={true}>
-                  <CoachList />
+                  <AddCoachesView />
                 </ProtectedRoute>
               }
             />
@@ -149,15 +163,15 @@ function App() {
                 </UserRoute>
               }
             />
-        
+
 
             {/* Redirect based on role */}
             <Route
               path="*"
               element={
                 isAuthenticated ? (
-                  userRole === 'admin' ? 
-                    <Navigate to="/" replace /> : 
+                  userRole === 'admin' ?
+                    <Navigate to="/" replace /> :
                     <Navigate to="/user-dashboard" replace />
                 ) : (
                   <Navigate to="/login" replace />
@@ -167,8 +181,7 @@ function App() {
           </Routes>
         </Router>
       </GoogleOAuthProvider>
-    </StrictMode>
-  );
+    );
 }
 
 export default App;

@@ -122,7 +122,7 @@ def validate_startup(data, is_patch=False):
         for member in data["StartupMembers"]:
             if not isinstance(member, dict):
                 raise BadRequest({"error": "Each StartupMember must be an object"})
-            require_fields(member, ["name", "email", "role"])
+            require_fields(member, ["name", "email"])
 
             # Name (Unicode allowed)
             cleaned_name = strip_whitespace(member["name"])
@@ -133,13 +133,16 @@ def validate_startup(data, is_patch=False):
             validate_email("member.email", cleaned_email)
 
             # Role (letters, numbers, spaces, and hyphens)
-            cleaned_role = strip_whitespace(member["role"])
-            validate_role("member.role", cleaned_role, min_len=2, max_len=50)
+            cleaned_role = strip_whitespace(member.get("role", ""))
+            if cleaned_role:
+                validate_role("member.role", cleaned_role, min_len=2,max_len=50)
 
             cleaned_members.append({
                 "name": cleaned_name,
                 "email": cleaned_email,
-                "role": cleaned_role
+                "phone": strip_whitespace(member.get("phone", "")),
+                "role": cleaned_role,
+                "level": strip_whitespace(member.get("level", ""))
             })
 
         data["StartupMembers"] = cleaned_members

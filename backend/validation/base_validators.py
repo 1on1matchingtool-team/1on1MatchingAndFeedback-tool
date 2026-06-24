@@ -308,7 +308,12 @@ def validate_coach_phone(value: str) -> str:
     normalized = "+" + digits_only if value.startswith("+") else digits_only
     return normalized
 
-def validate_coach_chat(value: str) -> str:
+def validate_coach_chat(value: str):
+    if value is None:
+        return None
+    value = strip_whitespace(value)
+    if value == "":
+        return None
     if not (3 <= len(value) <= 50):
         raise BadRequest({"error": "Chat must be between 3 and 50 characters"})
     if not re.match(CHAT_REGEX, value):

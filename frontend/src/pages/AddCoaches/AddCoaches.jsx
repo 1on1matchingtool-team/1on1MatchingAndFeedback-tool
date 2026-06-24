@@ -1,13 +1,31 @@
 import React, { useState } from "react";
 import { addCoach } from "../../api/coachApi";
+import { useNavigate } from "react-router-dom";
 
 const AddCoachPage = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    CoachName: "",
-    LinkedInAccount: "",
+    Title: "",
+    FirstName: "",
+    LastName: "",
+    Email: "",
+
+    Phone: "",
+    Chat: "",
+
     Expertise: "",
     Bio: "",
-    ExperienceYears: 0,
+
+    SocialMedia: {
+      LinkedIn: "",
+      GitHub: "",
+      Facebook: "",
+      Instagram: "",
+      Twitter: ""
+    },
+
+    CoachingSessions: 0,
+    BatchesCoached: 0
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -17,6 +35,16 @@ const AddCoachPage = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleSocialMediaChange = (platform, value) => {
+    setFormData({
+      ...formData,
+      SocialMedia: {
+        ...formData.SocialMedia,
+        [platform]: value
+      }
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -24,21 +52,21 @@ const AddCoachPage = () => {
     try {
       await addCoach(formData);
       alert('Coach created successfully!');
-      setFormData({
-        CoachName: "",
-        LinkedInAccount: "",
-        Expertise: "",
-        Bio: "",
-        ExperienceYears: 0,
-      });
+      navigate("/");
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      alert(
+        error.response?.data?.error ||
+        error.message
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const canSubmit = formData.CoachName && formData.LinkedInAccount;
+  const canSubmit =
+    formData.FirstName.trim() &&
+    formData.LastName.trim() &&
+    formData.Email.trim();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
@@ -77,16 +105,63 @@ const AddCoachPage = () => {
               </div>
 
               <div className="space-y-6">
+
                 <div className="relative">
                   <label className="block mb-2 text-sm font-semibold text-gray-700">
-                    Full Name <span className="text-red-500">*</span>
+                    Title
+                  </label>
+
+                  <select
+                    name="Title"
+                    value={formData.Title}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-4 text-gray-800 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  >
+                    <option value="">Please select</option>
+                    <option value="Mr.">Mr.</option>
+                    <option value="Mrs.">Mrs.</option>
+                    <option value="Ms.">Ms.</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Dr.">Dr.</option>
+                    <option value="Prof.">Prof.</option>
+                    <option value="Sir">Sir</option>
+                    <option value="Madam">Madam</option>
+                    <option value="Coach">Coach</option>
+                  </select>
+                </div>
+
+                <div className="relative">
+                  <label>
+                    First Name <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
-                      name="CoachName"
-                      placeholder="Enter coach's full name"
-                      value={formData.CoachName}
+                      name="FirstName"
+                      placeholder="Josh"
+                      value={formData.FirstName}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                      required
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-4">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <label>
+                    Last Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="LastName"
+                      placeholder="Smith"
+                      value={formData.LastName}
                       onChange={handleInputChange}
                       className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                       required
@@ -101,21 +176,32 @@ const AddCoachPage = () => {
 
                 <div className="relative">
                   <label className="block mb-2 text-sm font-semibold text-gray-700">
-                    LinkedIn Account <span className="text-red-500">*</span>
+                    Email <span className="text-red-500">*</span>
                   </label>
+
                   <div className="relative">
                     <input
-                      type="url"
-                      name="LinkedInAccount"
-                      placeholder="https://linkedin.com/in/yourprofile"
-                      value={formData.LinkedInAccount}
+                      type="email"
+                      name="Email"
+                      placeholder="coach@example.com"
+                      value={formData.Email}
                       onChange={handleInputChange}
                       className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                       required
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      <svg
+                        className="w-5 h-5 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
+                        />
                       </svg>
                     </div>
                   </div>
@@ -123,15 +209,30 @@ const AddCoachPage = () => {
 
                 <div className="relative">
                   <label className="block mb-2 text-sm font-semibold text-gray-700">
-                    Years of Experience
+                    Phone
                   </label>
+
                   <input
-                    type="number"
-                    name="ExperienceYears"
-                    placeholder="0"
-                    value={formData.ExperienceYears}
+                    type="text"
+                    name="Phone"
+                    placeholder="+358401234567"
+                    value={formData.Phone}
                     onChange={handleInputChange}
-                    min={0}
+                    className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  />
+                </div>
+
+                <div className="relative">
+                  <label className="block mb-2 text-sm font-semibold text-gray-700">
+                    Preferred Chat
+                  </label>
+
+                  <input
+                    type="text"
+                    name="Chat"
+                    placeholder="Telegram, Slack, WhatsApp..."
+                    value={formData.Chat}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                   />
                 </div>
@@ -170,10 +271,94 @@ const AddCoachPage = () => {
                 </div>
               </div>
 
+              <div className="pt-6 mt-6 border-t border-gray-200">
+                <h3 className="mb-4 text-xl font-semibold text-gray-800">
+                  Social Media
+                </h3>
+                <p className="mb-6 text-gray-600">
+                  Add any social media profiles (all optional)
+                </p>
+              </div>
+
+              <div className="relative mb-4">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  LinkedIn
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://linkedin.com/in/username"
+                  value={formData.SocialMedia.LinkedIn}
+                  onChange={(e) =>
+                    handleSocialMediaChange("LinkedIn", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div className="relative mb-4">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  GitHub
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://github.com/username"
+                  value={formData.SocialMedia.GitHub}
+                  onChange={(e) =>
+                    handleSocialMediaChange("GitHub", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div className="relative mb-4">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Facebook
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://facebook.com/username"
+                  value={formData.SocialMedia.Facebook}
+                  onChange={(e) =>
+                    handleSocialMediaChange("Facebook", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div className="relative mb-4">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Instagram
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://instagram.com/username"
+                  value={formData.SocialMedia.Instagram}
+                  onChange={(e) =>
+                    handleSocialMediaChange("Instagram", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div className="relative">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Twitter / X
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://x.com/username"
+                  value={formData.SocialMedia.Twitter}
+                  onChange={(e) =>
+                    handleSocialMediaChange("Twitter", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
               {/* Submit Button */}
               <div className="flex items-center justify-between pt-6 mt-8 border-t border-gray-100">
                 <button
-                  type="button"
+                  type="submit"
                   onClick={() => window.location.href = '/'}
                   className="px-6 py-3 font-semibold text-gray-600 transition-all duration-300 bg-gray-100 shadow-sm rounded-xl hover:bg-gray-200 hover:shadow"
                 >
@@ -238,12 +423,6 @@ const AddCoachPage = () => {
         <div className="absolute bg-green-300 rounded-full bottom-1/4 left-1/2 w-96 h-96 mix-blend-multiply filter blur-3xl opacity-5"></div>
       </div>
 
-      {/* Global Styles */}
-      <style jsx global>{`
-        .bg-noise {
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noiseFilter)' opacity='0.2'/%3E%3C/svg%3E");
-        }
-      `}</style>
     </div>
   );
 };

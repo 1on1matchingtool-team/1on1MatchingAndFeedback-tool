@@ -10,6 +10,9 @@ const CoachList = () => {
     const fetchCoaches = async () => {
       try {
         const data = await getCoaches();
+
+        console.log("Coaches:", data);
+
         setCoaches(data);
       } catch (err) {
         setError(err.message);
@@ -21,8 +24,13 @@ const CoachList = () => {
     fetchCoaches();
   }, []);
 
-  if (loading) return <div>Loading coaches...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (loading) {
+    return <div>Loading coaches...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
 
   return (
     <div className="coach-list">
@@ -31,7 +39,14 @@ const CoachList = () => {
       <ul>
         {coaches.map((coach) => (
           <li key={coach.CoachId}>
-            <strong>{coach.name}</strong> - {coach.email} ({coach.speciality})
+            <strong>
+              {coach.Title && `${coach.Title} `}
+              {coach.FirstName} {coach.LastName}
+            </strong>
+            <br />
+            {coach.Email}
+            <br />
+            {coach.Expertise || "No expertise listed"}
           </li>
         ))}
       </ul>

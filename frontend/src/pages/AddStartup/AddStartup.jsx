@@ -1,16 +1,34 @@
 import React, { useState } from "react";
+import { addStartup } from "../../api/startupApi";
+import { useNavigate } from "react-router-dom";
 
 const AddStartup = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     StartupName: "",
-    StartupMembers: "",
-    PrimaryContact: "",
-    SecondaryContact: "",
+    Website: "",
+    Status: "alive",
+
     StartupDescription: "",
-    StartupWebsite: "",
-    StartupSocialMedia1: "",
-    StartupSocialMedia2: "",
-    MeetingsCount: 0,
+    PreviousNames: "",
+
+    StartupMembers: [
+      {
+        Name: "",
+        Email: "",
+        Phone: "",
+        Role: "",
+        Level: ""
+      }
+    ],
+
+    StartupSocialMedia: {
+      LinkedIn: "",
+      GitHub: "",
+      Facebook: "",
+      Instagram: "",
+      Twitter: ""
+    }
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -22,34 +40,53 @@ const AddStartup = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const addStartupToDatabase = async (formData) => {
-    const backendUrl =
-      process.env.REACT_APP_BACKEND_URL || "http://127.0.0.1:5000";
-    const endpoint = `${backendUrl}/startups`;
+  const handleMemberChange = (index, field, value) => {
+    const updatedMembers = [...formData.StartupMembers];
+    updatedMembers[index] = {
+      ...updatedMembers[index],
+      [field]: value
+    };
+    setFormData({
+      ...formData,
+      StartupMembers: updatedMembers
+    });
+  };
 
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+  const addMember = () => {
+    setFormData({
+      ...formData,
+      StartupMembers: [
+        ...formData.StartupMembers,
+        {
+          Name: "",
+          Email: "",
+          Phone: "",
+          Role: "",
+          Level: ""
+        }
+      ]
+    });
+  };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Error response:", errorData);
-        throw new Error("Failed to add startup.");
+  const removeMember = (index) => {
+    if (formData.StartupMembers.length === 1) return;
+
+    setFormData({
+      ...formData,
+      StartupMembers: formData.StartupMembers.filter(
+        (_, i) => i !== index
+      )
+    });
+  };
+
+  const handleSocialMediaChange = (platform, value) => {
+    setFormData({
+      ...formData,
+      StartupSocialMedia: {
+        ...formData.StartupSocialMedia,
+        [platform]: value
       }
-
-      const data = await response.json();
-      console.log("Response Data:", data);
-      return data;
-    } catch (error) {
-      console.error("Error adding startup:", error);
-      alert("Failed to add startup. Please check the console for details.");
-      throw error;
-    }
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -57,30 +94,50 @@ const AddStartup = () => {
     setIsLoading(true);
 
     try {
-      await addStartupToDatabase(formData);
+      const payload = {
+        StartupName: formData.StartupName.trim(),
+        Website: formData.Website.trim(),
+        Status: formData.Status,
+        PreviousNames: formData.PreviousNames
+          ? formData.PreviousNames
+              .split(",")
+              .map(name => name.trim())
+              .filter(Boolean)
+          : [],
+
+        StartupMembers: formData.StartupMembers.map(member => ({
+          name: member.Name.trim(),
+          email: member.Email.trim(),
+          phone: member.Phone.trim(),
+          role: member.Role.trim(),
+          level: member.Level.trim()
+        })),
+
+        StartupSocialMedia: formData.StartupSocialMedia,
+        StartupDescription: formData.StartupDescription.trim()
+      };
+
+      await addStartup(payload);
+
       alert("Startup added successfully!");
-      setFormData({
-        StartupName: "",
-        StartupMembers: "",
-        PrimaryContact: "",
-        SecondaryContact: "",
-        StartupDescription: "",
-        StartupWebsite: "",
-        StartupSocialMedia1: "",
-        StartupSocialMedia2: "",
-        MeetingsCount: 0,
-      });
-      setCurrentStep(1);
+
+      navigate("/");
     } catch (error) {
-      alert(`Failed to add startup: ${error.message}`);
+      console.error("Error adding startup:", error);
+      alert("Failed to add startup.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const nextStep = () => {
+  const nextStep = (e) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    console.log("NEXT STEP", currentStep);
     if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
+        setCurrentStep(prev => prev + 1);
     }
   };
 
@@ -92,11 +149,14 @@ const AddStartup = () => {
 
   const canProceed = () => {
     if (currentStep === 1) {
-      return formData.StartupName && formData.PrimaryContact;
+      return (
+        formData.StartupName.trim() !== "" &&
+        formData.Website.trim() !== "" &&
+        formData.StartupMembers[0].Name.trim() !== "" &&
+        formData.StartupMembers[0].Email.trim() !== ""
+      );
     }
-    if (currentStep === 2) {
-      return formData.StartupDescription;
-    }
+
     return true;
   };
 
@@ -134,36 +194,110 @@ const AddStartup = () => {
               </div>
 
               <div className="relative">
+                <div className="relative">
+                  <label className="block mb-2 text-sm font-semibold text-gray-700">
+                    Website <span className="text-red-500">*</span>
+                  </label>
+
+                  <input
+                    type="url"
+                    name="Website"
+                    placeholder="https://yourstartup.com"
+                    value={formData.Website}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="relative">
                 <label className="block mb-2 text-sm font-semibold text-gray-700">
-                  Team Size
+                  Status <span className="text-red-500">*</span>
                 </label>
+
+                <select
+                  name="Status"
+                  value={formData.Status}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-4 text-gray-800 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                >
+                  <option value="alive">Alive</option>
+                  <option value="on-pause">On-pause</option>
+                  <option value="dead">Dead</option>
+                </select>
+              </div>
+
+              {formData.StartupMembers.map((member, index) => (
+                <div
+                  key={index}
+                  className="pt-4 mt-6 border-t border-gray-200"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-gray-800">
+                      {index === 0
+                        ? "Primary Startup Member"
+                        : `Startup Member ${index + 1}`}
+                    </h4>
+
+                    {formData.StartupMembers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeMember(index)}
+                        className="text-sm font-medium text-red-600 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+              <div className="relative">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Member Name <span className="text-red-500">*</span>
+                </label>
+
                 <input
                   type="text"
-                  name="StartupMembers"
-                  placeholder="e.g., 3-5 members"
-                  value={formData.StartupMembers}
-                  onChange={handleInputChange}
+                  placeholder="John Smith"
+                  value={member.Name}
+                  onChange={(e) =>
+                    handleMemberChange(index, "Name", e.target.value)
+                  }
                   className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  required
                 />
               </div>
 
               <div className="relative">
                 <label className="block mb-2 text-sm font-semibold text-gray-700">
-                  Primary Contact Email <span className="text-red-500">*</span>
+                  Member Email <span className="text-red-500">*</span>
                 </label>
+
                 <div className="relative">
                   <input
                     type="email"
-                    name="PrimaryContact"
-                    placeholder="founder@yourstartup.com"
-                    value={formData.PrimaryContact}
-                    onChange={handleInputChange}
+                    placeholder="member@yourstartup.com"
+                    value={member.Email}
+                    onChange={(e) =>
+                      handleMemberChange(index, "Email", e.target.value)
+                    }
                     className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                     required
                   />
+
                   <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                    <svg
+                      className="w-5 h-5 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -171,20 +305,66 @@ const AddStartup = () => {
 
               <div className="relative">
                 <label className="block mb-2 text-sm font-semibold text-gray-700">
-                  Secondary Contact Email
+                  Member Phone
                 </label>
+
                 <input
-                  type="email"
-                  name="SecondaryContact"
-                  placeholder="cofounder@yourstartup.com"
-                  value={formData.SecondaryContact}
-                  onChange={handleInputChange}
+                  type="text"
+                  placeholder="+358401234567"
+                  value={member.Phone}
+                  onChange={(e) =>
+                    handleMemberChange(index, "Phone", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div className="relative">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Member Role
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="Founder, CTO, CEO..."
+                  value={member.Role}
+                  onChange={(e) =>
+                    handleMemberChange(index, "Role", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div className="relative">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Member Level
+                </label>
+
+                <input
+                  type="text"
+                  placeholder="Senior, Junior, Executive..."
+                  value={member.Level}
+                  onChange={(e) =>
+                    handleMemberChange(index, "Level", e.target.value)
+                  }
                   className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                 />
               </div>
             </div>
+          ))}
+          <div className="pt-4">
+            <button
+              type="button"
+              onClick={addMember}
+              className="px-5 py-3 text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition"
+            >
+              + Add Another Member
+            </button>
           </div>
-        );
+
+        </div>
+      </div>
+    );
 
       case 2:
         return (
@@ -196,7 +376,7 @@ const AddStartup = () => {
 
             <div className="relative">
               <label className="block mb-2 text-sm font-semibold text-gray-700">
-                Startup Description <span className="text-red-500">*</span>
+                Startup Description
               </label>
               <textarea
                 name="StartupDescription"
@@ -205,28 +385,12 @@ const AddStartup = () => {
                 onChange={handleInputChange}
                 rows={6}
                 className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm resize-none rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                required
               />
               <div className="absolute bottom-4 right-4">
                 <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
               </div>
-            </div>
-
-            <div className="relative">
-              <label className="block mb-2 text-sm font-semibold text-gray-700">
-                Number of Meetings Held
-              </label>
-              <input
-                type="number"
-                name="MeetingsCount"
-                placeholder="0"
-                value={formData.MeetingsCount}
-                onChange={handleInputChange}
-                min={0}
-                className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-              />
             </div>
           </div>
         );
@@ -235,70 +399,99 @@ const AddStartup = () => {
         return (
           <div className="space-y-6">
             <div className="mb-8 text-center">
-              <h3 className="mb-2 text-2xl font-bold text-gray-800">Online Presence</h3>
-              <p className="text-gray-600">Share your digital footprint with us</p>
+              <h3 className="mb-2 text-2xl font-bold text-gray-800">
+                Online Presence
+              </h3>
+              <p className="text-gray-600">
+                Add any social media links your startup uses (all optional)
+              </p>
             </div>
 
-            <div className="space-y-6">
-              <div className="relative">
-                <label className="block mb-2 text-sm font-semibold text-gray-700">
-                  Website URL
-                </label>
-                <div className="relative">
-                  <input
-                    type="url"
-                    name="StartupWebsite"
-                    placeholder="https://www.yourstartup.com"
-                    value={formData.StartupWebsite}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
+            <div className="space-y-5">
 
-              <div className="relative">
+              <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">
-                  Primary Social Media
-                </label>
-                <div className="relative">
-                  <input
-                    type="url"
-                    name="StartupSocialMedia1"
-                    placeholder="https://linkedin.com/company/yourstartup"
-                    value={formData.StartupSocialMedia1}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-4">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 011 1v1a1 1 0 01-1 1v11a2 2 0 01-2 2H5a2 2 0 01-2-2V7a1 1 0 01-1-1V5a1 1 0 011-1h4zM9 3v1h6V3H9zm3 6a3 3 0 110 6 3 3 0 010-6z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative">
-                <label className="block mb-2 text-sm font-semibold text-gray-700">
-                  Secondary Social Media
+                  LinkedIn
                 </label>
                 <input
                   type="url"
-                  name="StartupSocialMedia2"
-                  placeholder="https://twitter.com/yourstartup"
-                  value={formData.StartupSocialMedia2}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-4 text-gray-800 placeholder-gray-400 transition-all duration-300 bg-white border-2 border-gray-200 shadow-sm rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  name="LinkedIn"
+                  placeholder="https://linkedin.com/company/yourstartup"
+                  value={formData.StartupSocialMedia.LinkedIn}
+                  onChange={(e) =>
+                    handleSocialMediaChange("LinkedIn", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
                 />
               </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  GitHub
+                </label>
+                <input
+                  type="url"
+                  name="GitHub"
+                  placeholder="https://github.com/yourstartup"
+                  value={formData.StartupSocialMedia.GitHub}
+                  onChange={(e) =>
+                    handleSocialMediaChange("GitHub", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Facebook
+                </label>
+                <input
+                  type="url"
+                  name="Facebook"
+                  placeholder="https://facebook.com/yourstartup"
+                  value={formData.StartupSocialMedia.Facebook}
+                  onChange={(e) =>
+                    handleSocialMediaChange("Facebook", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Instagram
+                </label>
+                <input
+                  type="url"
+                  name="Instagram"
+                  placeholder="https://instagram.com/yourstartup"
+                  value={formData.StartupSocialMedia.Instagram}
+                  onChange={(e) =>
+                    handleSocialMediaChange("Instagram", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Twitter / X
+                </label>
+                <input
+                  type="url"
+                  name="Twitter"
+                  placeholder="https://x.com/yourstartup"
+                  value={formData.StartupSocialMedia.Twitter}
+                  onChange={(e) =>
+                    handleSocialMediaChange("Twitter", e.target.value)
+                  }
+                  className="w-full px-4 py-4 text-gray-800 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                />
+              </div>
+
             </div>
           </div>
         );
-
       default:
         return null;
     }
@@ -365,91 +558,92 @@ const AddStartup = () => {
           </div>
 
           {/* Form Content */}
-          <div className="px-8 py-8">
-            <form onSubmit={handleSubmit}>
-              {renderStepContent()}
+          <form
+            className="px-8 py-8"
+            onSubmit={handleSubmit}
+          >
+            {renderStepContent()}
 
-              {/* Navigation Buttons */}
-              <div className="flex items-center justify-between pt-6 mt-8 border-t border-gray-100">
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-between pt-6 mt-8 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={prevStep}
+                disabled={currentStep === 1}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  currentStep === 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-sm hover:shadow'
+                }`}
+              >
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Previous
+                </div>
+              </button>
+
+              <div className="flex space-x-4">
                 <button
                   type="button"
-                  onClick={prevStep}
-                  disabled={currentStep === 1}
-                  className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                    currentStep === 1
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-sm hover:shadow'
-                  }`}
+                  onClick={() => navigate("/")}
+                  className="px-6 py-3 font-semibold text-gray-600 transition-all duration-300 bg-gray-100 shadow-sm rounded-xl hover:bg-gray-200 hover:shadow"
                 >
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    Previous
-                  </div>
+                  Cancel
                 </button>
 
-                <div className="flex space-x-4">
+                {currentStep < totalSteps ? (
                   <button
                     type="button"
-                    onClick={() => (window.location.href = "/")}
-                    className="px-6 py-3 font-semibold text-gray-600 transition-all duration-300 bg-gray-100 shadow-sm rounded-xl hover:bg-gray-200 hover:shadow"
+                    onClick={(e) => nextStep(e)}
+                    disabled={!canProceed()}
+                    className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      canProceed()
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
-                    Cancel
+                    <div className="flex items-center">
+                      Continue
+                      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </button>
-
-                  {currentStep < totalSteps ? (
-                    <button
-                      type="button"
-                      onClick={nextStep}
-                      disabled={!canProceed()}
-                      className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                        canProceed()
-                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        Continue
-                        <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={isLoading || !canProceed()}
-                      className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                        !isLoading && canProceed()
-                          ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white hover:from-emerald-700 hover:to-cyan-700 shadow-lg hover:shadow-xl'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        {isLoading ? (
-                          <>
-                            <svg className="w-4 h-4 mr-3 -ml-1 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Registering...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            Complete Registration
-                          </>
-                        )}
-                      </div>
-                    </button>
-                  )}
-                </div>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={isLoading || !canProceed()}
+                    className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      !isLoading && canProceed()
+                        ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white hover:from-emerald-700 hover:to-cyan-700 shadow-lg hover:shadow-xl'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      {isLoading ? (
+                        <>
+                          <svg className="w-4 h-4 mr-3 -ml-1 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Registering...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Complete Registration
+                        </>
+                      )}
+                    </div>
+                  </button>
+                )}
               </div>
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
 
         {/* Trust Indicators */}
@@ -477,7 +671,7 @@ const AddStartup = () => {
       </div>
 
       {/* Global Styles */}
-      <style jsx global>{`
+      <style>{`
         .bg-noise {
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noiseFilter)' opacity='0.2'/%3E%3C/svg%3E");
         }

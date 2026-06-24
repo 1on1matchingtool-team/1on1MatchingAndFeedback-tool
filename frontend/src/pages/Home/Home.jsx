@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
-export default function Home() {
+export default function Home({ onLogout }) {
   const navigate = useNavigate();
   
   // Simplified stats data
@@ -23,6 +23,15 @@ export default function Home() {
       gradient: "from-blue-500 to-blue-600",
       bgGradient: "from-blue-50 to-blue-100",
       iconBg: "bg-blue-500"
+    },
+    {
+      title: "View All Startups",
+      subtitle: "Browse companies",
+      icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+      action: () => navigate("/view-startups"),
+      gradient: "from-cyan-500 to-cyan-600",
+      bgGradient: "from-cyan-50 to-cyan-100",
+      iconBg: "bg-cyan-500"
     },
     {
       title: "Onboard Coach",
@@ -85,6 +94,13 @@ export default function Home() {
               <div className="text-sm font-medium text-gray-500">
                 {new Date().toLocaleString()}
               </div>
+
+              <button
+                onClick={onLogout}
+                className="px-4 py-2 text-sm font-medium text-gray-700 transition-colors bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
@@ -99,7 +115,7 @@ export default function Home() {
           className="p-8 mb-8 bg-white border shadow-xl rounded-2xl border-white/20"
         >
           <h2 className="mb-6 text-2xl font-bold text-gray-800">Quick Actions</h2>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {quickActions.map((action, index) => (
               <motion.button
                 key={index}

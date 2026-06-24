@@ -1,5 +1,5 @@
 # Backend Documentation
-#### Updated 20 May 2026
+#### Updated 24 June 2026
 
 ## Table of Contents
 
@@ -350,7 +350,7 @@ Below is a summary of each model’s endpoints and example request/response form
 
 ### **6.3.1 Startups**
 
-- **Endpoints**: 
+**Endpoints**: 
 - `GET /startups/all`
 - `GET /startups/<id>`
 - `POST /startups`
@@ -390,7 +390,7 @@ Status must be one of the allowed values
 
 ### **6.3.2 Coaches**
 
-- **Endpoints**: 
+**Endpoints**: 
 - `GET /coaches/all`
 - `GET /coaches/<id>`
 - `POST /coaches`
@@ -425,7 +425,7 @@ Update coach’s contact info *(The phone number is only the example.)*
 
 ### **6.3.3 Coach Slots**
 
-- **Endpoints**: 
+**Endpoints**: 
 - `GET /coach_slots/all`
 - `GET /coach_slots/<id>`
 - `POST /coach_slots`
@@ -459,7 +459,7 @@ Update slot duration
 
 ### **6.3.4 Coach Assignments**
 
-- **Endpoints**: 
+**Endpoints**: 
 - `GET /coach_assignments/all`
 - `GET /coach_assignments/<id>`
 - `POST /coach_assignments`
@@ -495,7 +495,7 @@ Update assigned slot
 
 ### **6.3.5 Daily Feedback**
 
-- **Endpoints**: 
+**Endpoints**: 
 - `GET /daily_feedback/all`
 - `GET /daily_feedback/<id>`
 - `POST /daily_feedback`
@@ -528,7 +528,7 @@ Update feedback text
 
 ### **6.3.6 Feedback History**
 
-- **Endpoints**: 
+**Endpoints**: 
 - `GET /feedback_history/all`
 - `GET /daily_feedback/<id>`
 - `POST /daily_feedback`
@@ -569,7 +569,7 @@ Update updated grade
 
 ### **6.3.7 Banned To Meet**
 
-- **Endpoints**: 
+**Endpoints**: 
 - `GET /banned_to_meet/all`
 - `GET /banned_to_meet/<id>`
 - `POST /banned_to_meet`
@@ -910,7 +910,7 @@ These scripts are for **development only** and **not part of the production API.
 
 ---
 
-## 11 Environment Variables
+## 11. Environment Variables
 The backend supports a small set of environment variables for configuration.
 Defaults are provided for local development, and no additional setup is required for basic usage.
 
@@ -921,11 +921,17 @@ Defaults are provided for local development, and no additional setup is required
 
 ### 11.2 **`REACT_APP_BACKEND_URL`**:
    - Base URL for the frontend to communicate with the backend.
-   - Typical local value: `http://localhost:5000`
+   - Typical local value: `http://localhost:5000` (Now updated to `http://127.0.0.1:5000`)
 
 ### 11.3 **Optional Debug Variables**
 These are helpful during development but not required in production:
    - `FLASK_ENV=development`
    - `FLASK_DEBUG=1`
 
-They enable hot reload and detailed error messages.
+---
+
+## Documentation Maintenance
+
+This document reflects the backend architecture and implementation as of **24 June 2026**.
+
+Future contributors are encouraged to keep this documentation synchronized with the codebase whenever new features, API endpoints, database models, routing logic, or validation behavior are introduced. Maintaining accurate documentation helps future developers understand the system architecture and reduces onboarding time for new contributors.
